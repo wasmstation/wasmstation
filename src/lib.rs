@@ -1,17 +1,23 @@
 #![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
+#![allow(unused_variables, dead_code)]
 
 use std::error::Error;
 
-mod wasm4;
-mod utils;
+pub mod wasm4;
+pub mod utils;
 
 /// Wgpu renderer.
 #[cfg(feature = "wgpu-renderer")]
 mod wgpu_renderer;
-
 #[cfg(feature = "wgpu-renderer")]
 pub use wgpu_renderer::WgpuRenderer;
+
+/// Wasmer backend.
+#[cfg(feature = "wasmer-backend")]
+mod wasmer_backend;
+#[cfg(feature = "wasmer-backend")]
+pub use wasmer_backend::WasmerBackend;
 
 /// Common trait for game renderers.
 pub trait Renderer {

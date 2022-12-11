@@ -12,7 +12,6 @@ use crate::{utils, wasm4::FRAMEBUFFER_SIZE, Renderer};
 const VERTICES: &[[f32; 2]; 4] = &[[1.0, 1.0], [1.0, -1.0], [-1.0, -1.0], [-1.0, 1.0]];
 const INDICES: &[i16] = &[3, 2, 0, 1, 0, 2];
 
-/// A wgpu backed renderer.
 pub struct WgpuRenderer {
     surface: Surface,
     device: Device,
