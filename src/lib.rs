@@ -1,9 +1,17 @@
 #![doc = include_str!("../README.md")]
+#![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 
 use std::error::Error;
 
-/// Wasm4 constants and addresses.
-pub mod wasm4;
+mod wasm4;
+mod utils;
+
+/// Wgpu renderer.
+#[cfg(feature = "wgpu-renderer")]
+mod wgpu_renderer;
+
+#[cfg(feature = "wgpu-renderer")]
+pub use wgpu_renderer::WgpuRenderer;
 
 /// Common trait for game renderers.
 pub trait Renderer {
