@@ -1,2 +1,29 @@
-[workspace]
-members = ["wasmstation"]
+[package]
+name = "wasmstation"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+argh = { version = "0.1", optional = true }
+
+[features]
+default = ["wasmer", "wgpu"] # this is still up for debate obviously
+
+# renderers
+wgpu = []
+sdl = []
+# embedded-graphics = []
+
+# backends
+wasmer = []
+# wasm3 = []
+
+# unique feature for cli dependencies
+cli = ["argh"]
+
+[[bin]]
+name = "wasmstation"
+path = "src/bin/cli.rs"
+required-features = ["cli"]
