@@ -5,19 +5,17 @@ A work-in-progress runtime for [wasm4](https://github.com/aduros/wasm4).
 ## Traits
 ```rust
 trait Renderer {
-    // with only one method for the renderer, the user of the library
-    // would have to manage window management/resizing.
-    fn render(&mut self, framebuffer: [u8; 6400], palette: [u32; 4]) -> Result<(), Box<dyn Error>>;
+    fn render(
+        &mut self,
+        framebuffer: [u8; FRAMEBUFFER_SIZE],
+        palette: [u8; 16],
+    ) -> Result<(), Box<dyn Error>>;
 }
 
 trait Backend {
     fn call_update(&mut self);
     fn call_start(&mut self);
-
-    // all data required to draw the state of the game.
-    fn get_screen(&self) -> ([u8; 6400], [u32; 4]);
-
-    // it's best that game input is separate if we want this to run on embedded.
+    fn read_screen(&self, framebuffer: &mut [u8; FRAMEBUFFER_SIZE], palette: &mut [u8; 16]);
     fn set_gamepad_state(gamepad: u32);
 }
 ```
