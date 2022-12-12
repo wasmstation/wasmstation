@@ -1,18 +1,29 @@
-use std::{iter, num::NonZeroU32};
+use std::{cell::Cell, iter, num::NonZeroU32, rc::Rc, sync::Arc};
 
 use wgpu::{
     include_wgsl,
     util::{BufferInitDescriptor, DeviceExt},
     *,
 };
-use winit::{dpi::PhysicalSize, window::Window};
+use winit::{
+    dpi::{LogicalSize, PhysicalSize},
+    event::{Event, WindowEvent},
+    event_loop::{ControlFlow, EventLoop},
+    window::{Window, WindowBuilder},
+};
 
-use crate::{utils, wasm4::FRAMEBUFFER_SIZE, Renderer};
+use crate::{
+    utils,
+    wasm4::{self, FRAMEBUFFER_SIZE},
+    Renderer,
+};
 
 const VERTICES: &[[f32; 2]; 4] = &[[1.0, 1.0], [1.0, -1.0], [-1.0, -1.0], [-1.0, 1.0]];
 const INDICES: &[i16] = &[3, 2, 0, 1, 0, 2];
 
 pub struct WgpuRenderer {
+    window: Window,
+    event_loop: EventLoop<()>,
     surface: Surface,
     device: Device,
     queue: Queue,
@@ -28,15 +39,27 @@ pub struct WgpuRenderer {
 }
 
 impl WgpuRenderer {
-    pub fn new_blocking(window: &Window) -> anyhow::Result<Self> {
-        pollster::block_on(Self::new(window))
+    pub fn new_blocking(display_scale: u32) -> anyhow::Result<Self> {
+        pollster::block_on(Self::new(display_scale))
     }
 
-    pub async fn new(window: &Window) -> anyhow::Result<Self> {
+    pub async fn new(display_scale: u32) -> anyhow::Result<Self> {
+        let event_loop = EventLoop::new();
+        let window = {
+            let size = LogicalSize::new(160 * 3, 160 * 3);
+            WindowBuilder::new()
+                .with_title("wasmstation")
+                .with_inner_size(size)
+                .with_min_inner_size(size)
+                .with_resizable(false)
+                .build(&event_loop)
+                .unwrap()
+        };
+
         let size = window.inner_size();
 
         let instance = Instance::new(Backends::all());
-        let surface = unsafe { instance.create_surface(window) };
+        let surface = unsafe { instance.create_surface(&window) };
         let adapter = instance
             .request_adapter(&RequestAdapterOptions {
                 power_preference: PowerPreference::default(),
@@ -255,6 +278,8 @@ impl WgpuRenderer {
             display_scale_buffer,
             framebuffer_texture,
             bind_group,
+            window,
+            event_loop,
         })
     }
 
@@ -274,9 +299,7 @@ impl WgpuRenderer {
             bytemuck::cast_slice(&[display_scale]),
         );
     }
-}
 
-impl Renderer for WgpuRenderer {
     fn render(
         &mut self,
         framebuffer: [u8; FRAMEBUFFER_SIZE],
@@ -366,5 +389,47 @@ impl Renderer for WgpuRenderer {
         output.present();
 
         Ok(())
+    }
+}
+
+impl Renderer<'static> for WgpuRenderer {
+    fn present(self, mut backend: impl crate::Backend + 'static) {
+        let mut renderer = self;
+
+        backend.call_start();
+
+        let mut framebuffer: [u8; wasm4::FRAMEBUFFER_SIZE] = utils::default_framebuffer();
+        let mut palette: [u8; 16] = utils::default_palette();
+
+        let mut backend = Cell::new(backend);
+
+        renderer.event_loop.run(move |event, _, control_flow| {
+            let backend = backend.get_mut();
+
+            // match event {
+            //     Event::WindowEvent { window_id, event } if window_id == self.window.id() => {
+            //         match event {
+            //             WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
+            //             WindowEvent::Resized(size) => renderer.resize(size),
+            //             WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
+            //                 renderer.resize(*new_inner_size)
+            //             }
+            //             _ => (),
+            //         }
+            //     }
+            //     Event::RedrawRequested(window_id) if window_id == renderer.window.id() => {
+            //         backend.call_update();
+
+            //         renderer.update_display_scale(3);
+            //         backend.read_screen(&mut framebuffer, &mut palette);
+
+            //         if let Err(e) = renderer.render(framebuffer, palette) {
+            //             eprintln!("{e}");
+            //         }
+            //     }
+            //     Event::MainEventsCleared => self.window.request_redraw(),
+            //     _ => (),
+            // }
+        });
     }
 }

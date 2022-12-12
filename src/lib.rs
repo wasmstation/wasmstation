@@ -4,8 +4,8 @@
 
 use std::error::Error;
 
-pub mod wasm4;
 pub mod utils;
+pub mod wasm4;
 
 /// Wgpu renderer.
 #[cfg(feature = "wgpu-renderer")]
@@ -19,13 +19,18 @@ mod wasmer_backend;
 #[cfg(feature = "wasmer-backend")]
 pub use wasmer_backend::WasmerBackend;
 
+pub fn launch<'a, R: Renderer<'a>, B: Backend + 'a>(backend: B, renderer: R) {
+    R::present(renderer, backend);
+}
+
 /// Common trait for game renderers.
-pub trait Renderer {
-    fn render(
-        &mut self,
-        framebuffer: [u8; wasm4::FRAMEBUFFER_SIZE],
-        palette: [u8; 16],
-    ) -> Result<(), Box<dyn Error>>;
+pub trait Renderer<'a> {
+    // fn render(
+    //     &mut self,
+    //     framebuffer: [u8; wasm4::FRAMEBUFFER_SIZE],
+    //     palette: [u8; 16],
+    // ) -> Result<(), Box<dyn Error>>;
+    fn present(self, b: impl Backend + 'a);
 }
 
 /// Common trait for webassembly backends.
