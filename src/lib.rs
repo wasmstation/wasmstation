@@ -1,17 +1,21 @@
 #![doc = include_str!("../README.md")]
+#![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
+#![allow(unused_variables, dead_code)]
 
-use std::error::Error;
-
-/// Wasm4 constants and addresses.
+pub mod utils;
 pub mod wasm4;
+
+pub mod renderer;
+pub mod backend;
+
+/// alias for Renderer::present(Backend)
+pub fn launch<R: Renderer, B: Backend + 'static>(backend: B, renderer: R) {
+    R::present(renderer, backend);
+}
 
 /// Common trait for game renderers.
 pub trait Renderer {
-    fn render(
-        &mut self,
-        framebuffer: [u8; wasm4::FRAMEBUFFER_SIZE],
-        palette: [u8; 16],
-    ) -> Result<(), Box<dyn Error>>;
+    fn present(self, b: impl Backend + 'static);
 }
 
 /// Common trait for webassembly backends.
