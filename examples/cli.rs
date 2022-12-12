@@ -1,7 +1,7 @@
 use std::{fs, path::PathBuf};
 
 use argh::FromArgs;
-use wasmstation::{WasmerBackend, WgpuRenderer};
+use wasmstation::{backend::WasmerBackend, renderer::WgpuRenderer};
 
 #[derive(FromArgs)]
 #[argh(description = "Run wasm4 compatible games.")]

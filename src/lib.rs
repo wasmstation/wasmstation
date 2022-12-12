@@ -5,17 +5,8 @@
 pub mod utils;
 pub mod wasm4;
 
-/// Wgpu renderer.
-#[cfg(feature = "wgpu-renderer")]
-mod wgpu_renderer;
-#[cfg(feature = "wgpu-renderer")]
-pub use wgpu_renderer::WgpuRenderer;
-
-/// Wasmer backend.
-#[cfg(feature = "wasmer-backend")]
-mod wasmer_backend;
-#[cfg(feature = "wasmer-backend")]
-pub use wasmer_backend::WasmerBackend;
+pub mod renderer;
+pub mod backend;
 
 /// alias for Renderer::present(Backend)
 pub fn launch<R: Renderer, B: Backend + 'static>(backend: B, renderer: R) {
