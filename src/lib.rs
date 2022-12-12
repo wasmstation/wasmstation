@@ -9,7 +9,7 @@ pub mod wasm4;
 #[cfg(feature = "wgpu-renderer")]
 mod wgpu_renderer;
 #[cfg(feature = "wgpu-renderer")]
-pub use wgpu_renderer::WgpuRendererBuilder;
+pub use wgpu_renderer::WgpuRenderer;
 
 /// Wasmer backend.
 #[cfg(feature = "wasmer-backend")]

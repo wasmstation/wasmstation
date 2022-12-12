@@ -15,7 +15,7 @@ impl WasmerBackend {
     pub fn new(wasm_bytes: &[u8]) -> anyhow::Result<Self> {
         Self::precompiled(&Module::new(&Store::default(), wasm_bytes)?.serialize()?)
     }
-    
+
     pub fn precompiled(module_bytes: &[u8]) -> anyhow::Result<Self> {
         let mut store = Store::new(Engine::headless());
         let module = unsafe { Module::deserialize(&store, module_bytes)? };
@@ -60,10 +60,7 @@ impl Backend for WasmerBackend {
 
         // clear the framebuffer (important)
         WasmPtr::<[u8; wasm4::FRAMEBUFFER_SIZE]>::new(wasm4::FRAMEBUFFER_ADDR as u32)
-            .write(
-                &view,
-                utils::default_framebuffer()
-            )
+            .write(&view, utils::default_framebuffer())
             .expect("clear framebuffer");
 
         if let Ok(update) = self.instance.exports.get_function("update") {

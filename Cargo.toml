@@ -19,18 +19,12 @@ byteorder = "1.4.3"
 # wasmer
 wasmer = { version = "3.0", optional = true }
 
-# cli
-argh = { version = "0.1", optional = true }
-
 [features]
 default = ["wasmer-backend", "wgpu-renderer"] # this is still up for debate obviously
 wgpu-renderer = ["wgpu", "winit", "pollster"]
 # sdl2-backend = []
 wasmer-backend = ["wasmer"]
 # wasm3-backend = []
-cli = ["argh", "winit"]
 
-[[bin]]
-name = "wasmstation"
-path = "src/bin/cli.rs"
-required-features = ["cli"]
+[dev-dependencies]
+argh = "0.1"
