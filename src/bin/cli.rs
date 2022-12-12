@@ -1,7 +1,7 @@
 use std::{fs, path::PathBuf};
 
 use argh::FromArgs;
-use wasmstation::{utils, wasm4, Backend, Renderer, WasmerBackend, WgpuRenderer};
+use wasmstation::{WasmerBackend, WgpuRendererBuilder};
 
 #[derive(FromArgs)]
 #[argh(description = "Run wasm4 compatible games.")]
@@ -23,6 +23,8 @@ fn main() {
 
     wasmstation::launch(
         WasmerBackend::new(&wasm_bytes).unwrap(),
-        WgpuRenderer::new_blocking(args.display_scale as u32).unwrap(),
+        WgpuRendererBuilder {
+            display_scale: args.display_scale as u32,
+        },
     );
 }

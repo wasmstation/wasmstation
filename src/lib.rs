@@ -2,8 +2,6 @@
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 #![allow(unused_variables, dead_code)]
 
-use std::error::Error;
-
 pub mod utils;
 pub mod wasm4;
 
@@ -11,7 +9,7 @@ pub mod wasm4;
 #[cfg(feature = "wgpu-renderer")]
 mod wgpu_renderer;
 #[cfg(feature = "wgpu-renderer")]
-pub use wgpu_renderer::WgpuRenderer;
+pub use wgpu_renderer::WgpuRendererBuilder;
 
 /// Wasmer backend.
 #[cfg(feature = "wasmer-backend")]
@@ -19,18 +17,14 @@ mod wasmer_backend;
 #[cfg(feature = "wasmer-backend")]
 pub use wasmer_backend::WasmerBackend;
 
-pub fn launch<'a, R: Renderer<'a>, B: Backend + 'a>(backend: B, renderer: R) {
+/// alias for Renderer::present(Backend)
+pub fn launch<R: Renderer, B: Backend + 'static>(backend: B, renderer: R) {
     R::present(renderer, backend);
 }
 
 /// Common trait for game renderers.
-pub trait Renderer<'a> {
-    // fn render(
-    //     &mut self,
-    //     framebuffer: [u8; wasm4::FRAMEBUFFER_SIZE],
-    //     palette: [u8; 16],
-    // ) -> Result<(), Box<dyn Error>>;
-    fn present(self, b: impl Backend + 'a);
+pub trait Renderer {
+    fn present(self, b: impl Backend + 'static);
 }
 
 /// Common trait for webassembly backends.

@@ -63,8 +63,6 @@ impl Backend for WasmerBackend {
             .write(
                 &view,
                 utils::default_framebuffer()
-                    .try_into()
-                    .expect("wrong framebuffer size"),
             )
             .expect("clear framebuffer");
 
