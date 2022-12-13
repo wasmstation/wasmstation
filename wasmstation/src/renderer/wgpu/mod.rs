@@ -14,7 +14,7 @@ use winit::{
 
 use crate::{
     utils,
-    wasm4::{self, FRAMEBUFFER_SIZE},
+    wasm4::{self, FRAMEBUFFER_SIZE, SCREEN_SIZE},
     Renderer,
 };
 
@@ -31,17 +31,17 @@ struct WgpuRendererInternal {
     vertex_buffer: Buffer,
     index_buffer: Buffer,
     palette_buffer: Buffer,
-    display_scale_buffer: Buffer,
+    window_size_buffer: Buffer,
     framebuffer_texture: Texture,
     bind_group: BindGroup,
 }
 
 impl WgpuRendererInternal {
-    pub fn new_blocking(window: &Window, display_scale: u32) -> anyhow::Result<Self> {
-        pollster::block_on(Self::new(window, display_scale))
+    pub fn new_blocking(window: &Window) -> anyhow::Result<Self> {
+        pollster::block_on(Self::new(window))
     }
 
-    pub async fn new(window: &Window, display_scale: u32) -> anyhow::Result<Self> {
+    pub async fn new(window: &Window) -> anyhow::Result<Self> {
         let size = window.inner_size();
         let instance = Instance::new(Backends::all());
         let surface = unsafe { instance.create_surface(&window) };
@@ -87,12 +87,6 @@ impl WgpuRendererInternal {
             usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         });
 
-        let display_scale_buffer = device.create_buffer_init(&BufferInitDescriptor {
-            label: Some("Display Scale Buffer"),
-            contents: bytemuck::cast_slice(&[1]),
-            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-        });
-
         let framebuffer_texture = device.create_texture(&TextureDescriptor {
             label: Some("framebuffer_texture"),
             size: Extent3d {
@@ -105,6 +99,12 @@ impl WgpuRendererInternal {
             dimension: TextureDimension::D1,
             format: TextureFormat::R8Uint,
             usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
+        });
+
+        let window_size_buffer = device.create_buffer_init(&BufferInitDescriptor {
+            label: Some("Window Size Buffer"),
+            contents: bytemuck::cast_slice(&[size.width, size.height]),
+            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         });
 
         queue.write_texture(
@@ -176,7 +176,7 @@ impl WgpuRendererInternal {
                 },
                 BindGroupEntry {
                     binding: 1,
-                    resource: display_scale_buffer.as_entire_binding(),
+                    resource: window_size_buffer.as_entire_binding(),
                 },
                 BindGroupEntry {
                     binding: 2,
@@ -260,9 +260,9 @@ impl WgpuRendererInternal {
             vertex_buffer,
             index_buffer,
             palette_buffer,
-            display_scale_buffer,
             framebuffer_texture,
             bind_group,
+            window_size_buffer,
         })
     }
 
@@ -273,14 +273,6 @@ impl WgpuRendererInternal {
             self.config.height = new_size.height;
             self.surface.configure(&self.device, &self.config);
         }
-    }
-
-    pub fn update_display_scale(&mut self, display_scale: u32) {
-        self.queue.write_buffer(
-            &self.display_scale_buffer,
-            0,
-            bytemuck::cast_slice(&[display_scale]),
-        );
     }
 
     fn render(
@@ -311,6 +303,12 @@ impl WgpuRendererInternal {
             &self.palette_buffer,
             0,
             bytemuck::cast_slice(&[palette_rgba]),
+        );
+
+        self.queue.write_buffer(
+            &self.window_size_buffer,
+            0,
+            bytemuck::cast_slice(&[self.size.width, self.size.height]),
         );
 
         // update framebuffer
@@ -383,12 +381,14 @@ impl Renderer for WgpuRenderer {
     fn present(self, mut backend: impl crate::Backend + 'static) {
         let event_loop = EventLoop::new();
         let window = {
-            let size = LogicalSize::new(160 * 3, 160 * 3);
+            let size = LogicalSize::new(
+                SCREEN_SIZE * self.display_scale,
+                SCREEN_SIZE * self.display_scale,
+            );
             WindowBuilder::new()
                 .with_title("wasmstation")
-                .with_inner_size(size)
-                .with_min_inner_size(size)
-                .with_resizable(false)
+                .with_inner_size(LogicalSize::new(SCREEN_SIZE * self.display_scale, SCREEN_SIZE * self.display_scale))
+                .with_min_inner_size(LogicalSize::new(SCREEN_SIZE, SCREEN_SIZE))
                 .build(&event_loop)
                 .unwrap()
         };
@@ -398,34 +398,28 @@ impl Renderer for WgpuRenderer {
         let mut framebuffer: [u8; wasm4::FRAMEBUFFER_SIZE] = utils::default_framebuffer();
         let mut palette: [u8; 16] = utils::default_palette();
 
-        let mut renderer =
-            WgpuRendererInternal::new_blocking(&window, self.display_scale).expect("initialize renderer");
+        let mut renderer = WgpuRendererInternal::new_blocking(&window)
+            .expect("initialize renderer");
 
-        event_loop.run(move |event, _, control_flow| {
-            match event {
-                Event::WindowEvent { window_id, event } if window_id == window.id() => {
-                    match event {
-                        WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-                        WindowEvent::Resized(size) => renderer.resize(size),
-                        WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
-                            renderer.resize(*new_inner_size)
-                        }
-                        _ => (),
-                    }
+        event_loop.run(move |event, _, control_flow| match event {
+            Event::WindowEvent { window_id, event } if window_id == window.id() => match event {
+                WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
+                WindowEvent::Resized(size) => renderer.resize(size),
+                WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
+                    renderer.resize(*new_inner_size)
                 }
-                Event::RedrawRequested(window_id) if window_id == window.id() => {
-                    backend.call_update();
-
-                    renderer.update_display_scale(3);
-                    backend.read_screen(&mut framebuffer, &mut palette);
-
-                    if let Err(e) = renderer.render(framebuffer, palette) {
-                        eprintln!("{e}");
-                    }
-                }
-                Event::MainEventsCleared => window.request_redraw(),
                 _ => (),
+            },
+            Event::RedrawRequested(window_id) if window_id == window.id() => {
+                backend.call_update();
+                backend.read_screen(&mut framebuffer, &mut palette);
+
+                if let Err(e) = renderer.render(framebuffer, palette) {
+                    eprintln!("{e}");
+                }
             }
+            Event::MainEventsCleared => window.request_redraw(),
+            _ => (),
         });
     }
 }
