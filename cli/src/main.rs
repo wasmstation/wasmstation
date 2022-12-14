@@ -18,20 +18,22 @@ struct Args {
     #[argh(
         option,
         short = 'r',
-        default = "String::from(\"wgpu\")",
         description = "renderer to use"
     )]
-    renderer: String,
+    renderer: Option<String>,
 }
 
 fn main() {
     let args: Args = argh::from_env();
+    let renderer_name = args.renderer.as_ref()
+        .map(|s|String::from(s))
+        .unwrap_or_else(||String::from(ProxyRenderer::default_name()));
     let wasm_bytes = fs::read(&args.path).expect("failed to read game");
 
-    let renderer = match ProxyRenderer::from_name(&args.renderer, args.display_scale as u32) {
+    let renderer = match ProxyRenderer::from_name(&renderer_name, args.display_scale as u32) {
         Ok(r) => r,
         Err(_) => {
-            eprintln!("renderer '{}' is unknown, supported renderers are: {:?}", args.renderer, ProxyRenderer::names());
+            eprintln!("renderer '{}' is unknown, supported renderers are: {:?}", &renderer_name, ProxyRenderer::names());
             std::process::exit(1)
         }
     };

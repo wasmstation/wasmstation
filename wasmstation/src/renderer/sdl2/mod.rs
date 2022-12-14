@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use sdl2::{pixels::{PixelFormatEnum, Color, Palette}, surface::Surface, rect::Rect, event::Event, keyboard::Keycode};
 
-use crate::{Renderer, wasm4::{SCREEN_SIZE, FRAMEBUFFER_ADDR, FRAMEBUFFER_SIZE}};
+use crate::{Renderer, wasm4::{SCREEN_SIZE, FRAMEBUFFER_SIZE}};
 
 
 pub struct Sdl2Renderer {}

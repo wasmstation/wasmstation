@@ -1,6 +1,10 @@
 use crate::Renderer;
 
-use super::{WgpuRenderer, Sdl2Renderer};
+#[cfg(feature="wgpu-renderer")]
+use super::WgpuRenderer;
+#[cfg(feature="sdl2-renderer")]
+use super::Sdl2Renderer;
+
 
 
 pub enum ProxyRenderer {
@@ -10,15 +14,25 @@ pub enum ProxyRenderer {
     Sdl2(Sdl2Renderer),
 }
 
-const PROXY_RENDERER_NAMES: &[&str] = &["wgpu", "sdl2"];
+const PROXY_RENDERER_NAMES: &[&str] = &[
+    #[cfg(feature="wgpu-renderer")]
+    "wgpu", 
+    #[cfg(feature="sdl2-renderer")]
+    "sdl2",
+];
 impl ProxyRenderer {
 
     pub fn from_name(name: &str, display_scale: u32) -> Result<ProxyRenderer,()> {
         match name {
+            #[cfg(feature="wgpu-renderer")]
             "wgpu" => Ok(ProxyRenderer::Wgpu(WgpuRenderer{display_scale})),
+            #[cfg(feature="sdl2-renderer")]
             "sdl2" => Ok(ProxyRenderer::Sdl2(Sdl2Renderer{})),
             _ => Err(())
         }
+    }
+    pub fn default_name() -> &'static str {
+        ProxyRenderer::names()[0]
     }
     pub fn names() -> &'static [&'static str] {
         return PROXY_RENDERER_NAMES;

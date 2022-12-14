@@ -23,7 +23,11 @@ wasmer = { version = "3.0", optional = true }
 sdl2 = { version = "0.35", optional = true }
 
 [features]
-default = ["wasmer-backend", "wgpu-renderer", "sdl2-renderer"] # this is still up for debate obviously
+default = [
+    "wasmer-backend", 
+    "wgpu-renderer", 
+    "sdl2-renderer",
+] # this is still up for debate obviously
 wgpu-renderer = ["wgpu", "winit", "pollster"]
 sdl2-renderer = ["sdl2"]
 wasmer-backend = ["wasmer"]
