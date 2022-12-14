@@ -377,6 +377,12 @@ pub struct WgpuRenderer {
     pub display_scale: u32,
 }
 
+impl Default for WgpuRenderer {
+    fn default() -> Self {
+        Self { display_scale: 3 }
+    }
+}
+
 impl Renderer for WgpuRenderer {
     fn present(self, mut backend: impl crate::Backend + 'static) {
         let event_loop = EventLoop::new();

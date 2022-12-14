@@ -9,6 +9,12 @@ edition = "2021"
 argh = "0.1"
 wasmstation = { path = "../wasmstation" }
 
+[features]
+default = ["sdl2"]
+
+wgpu = ["wasmstation/wgpu-renderer"]
+sdl2 = ["wasmstation/sdl2-renderer"]
+
 [[bin]]
 name = "wasmstation"
 path = "src/main.rs"
