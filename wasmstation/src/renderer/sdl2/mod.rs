@@ -4,10 +4,8 @@ use sdl2::{pixels::{PixelFormatEnum, Color, Palette}, surface::Surface, rect::Re
 
 use crate::{Renderer, wasm4::{SCREEN_SIZE, FRAMEBUFFER_SIZE}};
 
-
-pub struct Sdl2Renderer {}
-
-
+#[derive(Default)]
+pub struct Sdl2Renderer;
 
 fn expand_fb_to_index8(fbtexdata: &mut [u8]) {
     assert!(fbtexdata.len() %4 == 0);
