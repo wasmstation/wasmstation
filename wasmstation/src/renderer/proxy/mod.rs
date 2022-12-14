@@ -10,13 +10,19 @@ pub enum ProxyRenderer {
     Sdl2(Sdl2Renderer),
 }
 
+const PROXY_RENDERER_NAMES: &[&str] = &["wgpu", "sdl2"];
 impl ProxyRenderer {
+
     pub fn from_name(name: &str, display_scale: u32) -> Result<ProxyRenderer,()> {
         match name {
             "wgpu" => Ok(ProxyRenderer::Wgpu(WgpuRenderer{display_scale})),
             "sdl2" => Ok(ProxyRenderer::Sdl2(Sdl2Renderer{})),
             _ => Err(())
         }
+    }
+    pub fn names() -> &'static [&'static str] {
+        return PROXY_RENDERER_NAMES;
+
     }
 }
 

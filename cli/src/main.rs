@@ -31,7 +31,7 @@ fn main() {
     let renderer = match ProxyRenderer::from_name(&args.renderer, args.display_scale as u32) {
         Ok(r) => r,
         Err(_) => {
-            eprintln!("renderer '{}' is unknown", args.renderer);
+            eprintln!("renderer '{}' is unknown, supported renderers are: {:?}", args.renderer, ProxyRenderer::names());
             std::process::exit(1)
         }
     };
