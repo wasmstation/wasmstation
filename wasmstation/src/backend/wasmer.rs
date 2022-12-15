@@ -1,9 +1,9 @@
 use wasmer::{
     imports, Engine, Function, FunctionEnv, FunctionEnvMut, Instance, Memory, MemoryType, Module,
-    Store, TypedFunction, WasmPtr,
+    Store, TypedFunction, WasmPtr, ValueType, WasmSlice, AsStoreRef,
 };
 
-use crate::{utils, wasm4, Backend};
+use crate::{utils, wasm4::{self, SCREEN_SIZE, FRAMEBUFFER_SIZE, FRAMEBUFFER_ADDR, DRAW_COLORS_ADDR}, Backend, Source, Sink};
 
 pub struct WasmerBackend {
     fn_env: FunctionEnv<WasmerRuntimeEnv>,
@@ -119,6 +119,29 @@ impl WasmerRuntimeEnv {
     }
 }
 
+struct WasmSliceSinkSource<'a, T> 
+where T: ValueType + Copy
+{
+    slice: WasmSlice<'a, T>
+}
+
+impl <'a,T> Source<T> for WasmSliceSinkSource<'a, T>
+where T: ValueType + Copy
+{
+    fn item_at(&self, offset: usize) -> T {
+       self.slice.index(offset as u64).read().unwrap()
+    }
+}
+
+impl <'a,T> Sink<T> for WasmSliceSinkSource<'a, T>
+where T: ValueType + Copy
+{
+    fn set_item_at(&mut self, offset: usize, item: T) {
+       self.slice.index(offset as u64).write(item).expect("writing to wasm memory failed");
+    }
+}
+
+
 fn trace_utf8(env: FunctionEnvMut<WasmerRuntimeEnv>, ptr: WasmPtr<u8>, len: i32) {}
 fn trace_utf16(env: FunctionEnvMut<WasmerRuntimeEnv>, ptr: WasmPtr<u8>, len: i32) {}
 fn blit(
@@ -130,6 +153,7 @@ fn blit(
     height: u32,
     flags: u32,
 ) {
+    blit_sub(env, ptr, x, y, width, height, 0, 0, width, flags)
 }
 fn blit_sub(
     env: FunctionEnvMut<WasmerRuntimeEnv>,
@@ -143,7 +167,27 @@ fn blit_sub(
     stride: u32,
     flags: u32,
 ) {
+
+    let view = env.data().memory.view(&env.as_store_ref());
+    let num_bits = stride * (height + src_y) * crate::console::fb::pixel_width_of_flags(flags);
+    let len = (num_bits + 7) / 8;
+    let sprite_slice = sprite.slice(&view, len).unwrap();
+
+    let fb_len = FRAMEBUFFER_SIZE as u32;
+    let fb_slice = WasmPtr::<u8>::new(FRAMEBUFFER_ADDR as u32).slice(&view, fb_len).unwrap();
+    
+    let draw_colors: u16 = {
+        let mut buf = [0u8;2];
+        view.read(DRAW_COLORS_ADDR as u64, &mut buf).unwrap();
+        buf[0] as u16 | ((buf[1] as u16) << 8)
+    };
+
+    let src = WasmSliceSinkSource {slice: sprite_slice};
+    let mut tgt = WasmSliceSinkSource {slice: fb_slice};
+
+    crate::console::fb::blit_sub(&mut tgt, &src, x, y, width, height, src_x, src_y, stride, flags, draw_colors);
 }
+
 fn line(env: FunctionEnvMut<WasmerRuntimeEnv>, x1: i32, y1: i32, x2: i32, y2: i32) {}
 fn hline(env: FunctionEnvMut<WasmerRuntimeEnv>, x: i32, y: i32, len: u32) {}
 fn vline(env: FunctionEnvMut<WasmerRuntimeEnv>, x: i32, y: i32, len: u32) {}
