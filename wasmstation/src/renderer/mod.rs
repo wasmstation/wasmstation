@@ -4,7 +4,6 @@ mod wgpu;
 #[cfg(feature = "wgpu-renderer")]
 pub use self::wgpu::WgpuRenderer;
 
-
 #[cfg(feature = "sdl2-renderer")]
 mod sdl2;
 

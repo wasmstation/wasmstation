@@ -387,7 +387,10 @@ impl Renderer for WgpuRenderer {
             );
             WindowBuilder::new()
                 .with_title("wasmstation")
-                .with_inner_size(LogicalSize::new(SCREEN_SIZE * self.display_scale, SCREEN_SIZE * self.display_scale))
+                .with_inner_size(LogicalSize::new(
+                    SCREEN_SIZE * self.display_scale,
+                    SCREEN_SIZE * self.display_scale,
+                ))
                 .with_min_inner_size(LogicalSize::new(SCREEN_SIZE, SCREEN_SIZE))
                 .build(&event_loop)
                 .unwrap()
@@ -398,8 +401,8 @@ impl Renderer for WgpuRenderer {
         let mut framebuffer: [u8; wasm4::FRAMEBUFFER_SIZE] = utils::default_framebuffer();
         let mut palette: [u8; 16] = utils::default_palette();
 
-        let mut renderer = WgpuRendererInternal::new_blocking(&window)
-            .expect("initialize renderer");
+        let mut renderer =
+            WgpuRendererInternal::new_blocking(&window).expect("initialize renderer");
 
         event_loop.run(move |event, _, control_flow| match event {
             Event::WindowEvent { window_id, event } if window_id == window.id() => match event {

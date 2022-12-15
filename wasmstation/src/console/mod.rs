@@ -1,1 +1,1 @@
-pub (crate) mod fb;
+pub(crate) mod fb;
