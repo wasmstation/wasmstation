@@ -7,6 +7,7 @@ pub mod wasm4;
 
 pub mod renderer;
 pub mod backend;
+mod console;
 
 /// alias for Renderer::present(Backend)
 pub fn launch<R: Renderer, B: Backend + 'static>(backend: B, renderer: R) {
