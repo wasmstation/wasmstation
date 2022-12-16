@@ -13,7 +13,8 @@ use crate::{
     Renderer,
 };
 
-pub struct Sdl2Renderer {}
+#[derive(Default)]
+pub struct Sdl2Renderer;
 
 fn expand_fb_to_index8(fbtexdata: &mut [u8]) {
     assert!(fbtexdata.len() % 4 == 0);
