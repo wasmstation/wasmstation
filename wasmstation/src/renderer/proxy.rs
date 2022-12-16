@@ -14,7 +14,7 @@ pub enum ProxyRenderer {
     Sdl2(Sdl2Renderer),
 }
 
-const PROXY_RENDERER_NAMES: &[&str] = &[
+const AVAILABLE_RENDERERS: &[&str] = &[
     #[cfg(feature = "wgpu-renderer")]
     "wgpu",
     #[cfg(feature = "sdl2-renderer")]
@@ -22,21 +22,21 @@ const PROXY_RENDERER_NAMES: &[&str] = &[
 ];
 
 impl ProxyRenderer {
-    pub fn possible_names() -> &'static [&'static str] {
-        PROXY_RENDERER_NAMES
+    pub fn available_renderers() -> &'static [&'static str] {
+        AVAILABLE_RENDERERS
     }
 
     pub fn set_display_scale(&mut self, scale: u32) {
-        match self {
-            ProxyRenderer::Wgpu(w) => w.display_scale = scale,
-            _ => (),
+        // AFAIK, the wgpu renderer is the only one with display_scale at the moment.
+        if let ProxyRenderer::Wgpu(renderer) = self {
+            renderer.display_scale = scale;
         }
     }
 }
 
 impl Default for ProxyRenderer {
     fn default() -> Self {
-        Self::from_str(PROXY_RENDERER_NAMES[0]).unwrap()
+        Self::from_str(AVAILABLE_RENDERERS[0]).unwrap()
     }
 }
 
