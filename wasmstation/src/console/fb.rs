@@ -1,6 +1,8 @@
 // WASM-4 Framebuffer functions
 
-use std::ops::Range;
+use std::{ops::Range, mem::size_of};
+
+use num_traits::{PrimInt, Unsigned};
 
 use crate::{
     wasm4::{BLIT_2BPP, SCREEN_SIZE},
@@ -193,37 +195,89 @@ fn test_blit_sub_impl_1byte() {
 
     assert_eq!(fb, vec![0b01010101, 0b00000000]);
 
-    // with background
-    let sprite = vec![0b00001110u8];
-    let mut fb = vec![0b11111111, 0b00101000];
+    // because of the draw color config the 0 bits of this
+    // 1BPP sprite are transparent. the formatting shows how
+    // the individual pixels align with the framebuffer pixes
+    // (which are 2 bits wide; the sprite pixes are 1 bit wide)
+    let sprite =      as_fb_vec(0b__0__0__0__0__1__1__1__0_u8);
+    let mut fb =      as_fb_vec(0b_00_10_10_00_11_11_11_11_u16);
+    // the result is visible in that for each 1 bit in the sprite,
+    // a 01 pixes is written into the fb
+    let expected_fb = as_fb_vec(0b_00_10_10_00_01_01_01_11_u16);
 
     blit_sub(&mut fb, &sprite, 0, 0, 8, 1, 0, 0, 8, 0, draw_colors);
 
-    assert_eq!(fb, vec![0b01010111, 0b00101000])
+    assert_eq!(fb, expected_fb);
 }
 
 #[test]
 fn test_blit_sub_impl_1byte_misaligned() {
     let draw_colors = 0x4320;
-    let sprite = vec![0b1111_1111u8];
-    let mut fb = vec![0u8; 2];
 
-    blit_sub(
-        &mut fb,
-        &sprite,
-        2,
-        0,
-        4,
-        1,
-        0,
-        0,
-        8,
-        BLIT_2BPP,
-        draw_colors,
-    );
+    // in this example, we write a 2BPP sprite into
+    // the frame buffer at a position where the sprite
+    // byte falls into two target fb bytes (x=2). You can
+    // see this in the indentation we use. The example
+    // is drawing on an empty framebuffer (filled with
+    // 00 pixels).
+    let sprite =            as_fb_vec(0b_10_11_11_10__u8);
+    let mut fb =      as_fb_vec(0b_00_00_00_00_00_00_00_00__u16);
 
-    assert_eq!(fb, vec![0b11110000, 0b00001111])
+    // as a result, half the bits are written into the each side of the
+    // fb
+    let expected_fb = as_fb_vec(0b_00_00_10_11_11_10_00_00__u16);
+
+    blit_sub(&mut fb, &sprite, 2, 0, 4, 1, 0, 0, 8, BLIT_2BPP, draw_colors);
+
+    assert_eq!(fb, expected_fb)
 }
+
+// Convert arbitrary primitive integer types (aka u8..u128/i8..i128) 
+// into a Vec<u8> for use in framebuffer related functions, allowing
+// to define sprites and framebuffer patterns inline with rusts
+// integer (bit) literals.
+// This is needed for testing so that we can conveniently spell out bit
+// patterns in various sizes, yielding them as Vec<u8>
+fn as_fb_vec<T>(mut n: T) -> Vec<u8>
+where T: PrimInt + Unsigned
+{
+    let mut v = Vec::with_capacity(size_of::<T>());
+    for i in 0..size_of::<T>() {
+        
+        let mask = T::from(0xff).unwrap();
+        v.push(n.bitand(mask).to_u8().unwrap());
+
+        if i < size_of::<T>()-1 {
+            n = n.shr(8);
+        }
+    }
+
+    v
+}
+
+#[test]
+fn test_as_fb_vec_u8() {
+    // happy case, coming from u8
+    assert_eq!(vec![0b10010110u8], as_fb_vec(0b10010110u8));
+
+    // u16 into a vec of 2 x u8 - the two tests are equivalent, but
+    // shows we can write it also as 0x as well as a 0b literal
+    assert_eq!(vec![0b_10010110_u8, 0b_011101011], as_fb_vec(0b_011101011_10010110_u16));
+    assert_eq!(vec![0x_FE_u8, 0x_AF_u8], as_fb_vec(0x_AFFE_u16));
+
+    // u64 into a vec of 8 x u8 - we ony write as 0x, as its easier
+    // to read here
+    assert_eq!(
+        vec![0xED, 0xFE, 0xEF, 0xBE, 0xAD, 0xDE, 0xFE, 0xAF], 
+        as_fb_vec(0x_AFFE_DEAD_BEEF_FEED_u64)
+    );
+}
+
+#[test]
+fn test_blit_sub_atlas() {
+
+}
+
 
 fn conv_1bpp_to_2bpp(pixbuf: u8) -> u32 {
     // convert 1BPP to 2BPP format
@@ -240,11 +294,13 @@ fn conv_1bpp_to_2bpp(pixbuf: u8) -> u32 {
 
 #[test]
 fn test_conv_1bpp_to_2bpp() {
-    assert_eq!(0b0101010101010101, conv_1bpp_to_2bpp(0b0000000011111111));
-    assert_eq!(0b0101010100000000, conv_1bpp_to_2bpp(0b0000000011110000));
+    assert_eq!(0b01_01_01_01_01_01_01_01, conv_1bpp_to_2bpp(0b0000000011111111));
+    assert_eq!(0b01_01_01_01_00_00_00_00, conv_1bpp_to_2bpp(0b0000000011110000));
 }
 
-fn remap_draw_colors(sprite_word: u32, sprite_word_pixels: u32, draw_colors: u16) -> (u32, u32) {
+/// convert a machine word of sprite pixels to actual FB indices and a mask
+/// for applying transparent pixels
+fn remap_draw_colors(sprite_word: u32, sprite_word_pixels: u32, draw_colors: u16) -> (u32, u32){
     let mut s = 0;
     let mut m = 0;
     for n in 0..sprite_word_pixels {
@@ -264,8 +320,5 @@ fn remap_draw_colors(sprite_word: u32, sprite_word_pixels: u32, draw_colors: u16
 
 #[test]
 fn test_remap_draw_colors() {
-    assert_eq!(
-        (0b01001000, 0b00110000),
-        remap_draw_colors(0b11100001, 4, 0x2013)
-    );
+    assert_eq!((0b01_00_10_00, 0b00_11_00_00), remap_draw_colors(0b11100001, 4, 0x2013));
 }
