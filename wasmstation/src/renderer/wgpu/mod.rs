@@ -6,7 +6,7 @@ use wgpu::{
     *,
 };
 use winit::{
-    dpi::{LogicalSize, PhysicalSize},
+    dpi::{LogicalSize, PhysicalPosition, PhysicalSize},
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::{Window, WindowBuilder},
@@ -406,6 +406,7 @@ impl Renderer for WgpuRenderer {
 
         let mut framebuffer: [u8; wasm4::FRAMEBUFFER_SIZE] = utils::default_framebuffer();
         let mut palette: [u8; 16] = utils::default_palette();
+        let (mut mouse_x, mut mouse_y): (i16, i16) = (80, 80);
 
         let mut renderer =
             WgpuRendererInternal::new_blocking(&window).expect("initialize renderer");
@@ -417,9 +418,30 @@ impl Renderer for WgpuRenderer {
                 WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
                     renderer.resize(*new_inner_size)
                 }
+                WindowEvent::CursorMoved { position, .. } => {
+                    let position: PhysicalPosition<u32> =
+                        PhysicalPosition::new(position.x as u32, position.y as u32);
+
+                    let window_size = renderer.size;
+                    let game_size = window_size.width.min(window_size.height) as u32;
+
+                    let border_x = (window_size.width - game_size) / 2;
+                    let border_y = (window_size.height - game_size) / 2;
+
+                    if position.x >= border_x
+                        && position.y >= border_y
+                        && position.x <= (window_size.width - border_x)
+                        && position.y <= (window_size.height - border_y)
+                    {
+                        println!("in the box!");
+                    } else {
+                        println!("not in the box!");
+                    }
+                }
                 _ => (),
             },
             Event::RedrawRequested(window_id) if window_id == window.id() => {
+                backend.set_mouse(mouse_x, mouse_y, 0);
                 backend.call_update();
                 backend.read_screen(&mut framebuffer, &mut palette);
 

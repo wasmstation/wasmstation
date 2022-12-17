@@ -24,8 +24,8 @@ pub trait Backend {
     fn call_update(&mut self);
     fn call_start(&mut self);
     fn read_screen(&self, framebuffer: &mut [u8; wasm4::FRAMEBUFFER_SIZE], palette: &mut [u8; 16]);
-    fn set_gamepad(gamepad: u32);
-    fn set_mouse(x: i16, y: i16, buttons: u8);
+    fn set_gamepad(&mut self, gamepad: u32);
+    fn set_mouse(&mut self, x: i16, y: i16, buttons: u8);
 }
 
 /// Common trait for reading from game memory.

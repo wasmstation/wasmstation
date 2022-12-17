@@ -93,9 +93,16 @@ impl Backend for WasmerBackend {
             .expect("read to palette");
     }
 
-    fn set_gamepad(gamepad: u32) {}
+    fn set_gamepad(&mut self, gamepad: u32) {}
 
-    fn set_mouse(x: i16, y: i16, buttons: u8) {}
+    fn set_mouse(&mut self, x: i16, y: i16, buttons: u8) {
+        let view = self.fn_env.as_ref(&self.store).memory.view(&self.store);
+
+        view.write(wasm4::MOUSE_X_ADDR as u64, bytemuck::cast_slice(&[x]))
+            .expect("write to MOUSE_X_ADDR");
+        view.write(wasm4::MOUSE_Y_ADDR as u64, bytemuck::cast_slice(&[y]))
+            .expect("write to MOUSE_X_ADDR");
+    }
 }
 
 struct WasmerRuntimeEnv {
@@ -118,6 +125,10 @@ impl WasmerRuntimeEnv {
             wasm4::FRAMEBUFFER_ADDR as u64,
             &utils::default_framebuffer(),
         )?;
+
+        // each are u16, so I put in u8 + u8
+        mem_view.write(wasm4::MOUSE_X_ADDR as u64, &[0, 0])?;
+        mem_view.write(wasm4::MOUSE_Y_ADDR as u64, &[0, 0])?;
 
         Ok(Self { memory })
     }
