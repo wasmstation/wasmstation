@@ -4,7 +4,7 @@ use wasmer::{
 };
 
 use crate::{
-    utils,
+    console, utils,
     wasm4::{self, DRAW_COLORS_ADDR, FRAMEBUFFER_ADDR, FRAMEBUFFER_SIZE},
     Backend, Sink, Source,
 };
@@ -199,7 +199,7 @@ fn blit_sub(
     };
     let mut tgt = WasmSliceSinkSource { slice: fb_slice };
 
-    crate::console::fb::blit_sub(
+    console::fb::blit_sub(
         &mut tgt,
         &src,
         x,
@@ -214,7 +214,22 @@ fn blit_sub(
     );
 }
 
-fn line(env: FunctionEnvMut<WasmerRuntimeEnv>, x1: i32, y1: i32, x2: i32, y2: i32) {}
+fn line(env: FunctionEnvMut<WasmerRuntimeEnv>, x1: i32, y1: i32, x2: i32, y2: i32) {
+    let view = env.data().memory.view(&env.as_store_ref());
+
+    let draw_colors = WasmPtr::<u16>::new(DRAW_COLORS_ADDR as u32)
+        .read(&view)
+        .unwrap();
+
+    let mut fb = WasmSliceSinkSource {
+        slice: WasmPtr::<u8>::new(FRAMEBUFFER_ADDR as u32)
+            .slice(&view, FRAMEBUFFER_SIZE as u32)
+            .unwrap(),
+    };
+
+    console::fb::line(&mut fb, draw_colors, x1, y1, x2, y2);
+}
+
 fn hline(env: FunctionEnvMut<WasmerRuntimeEnv>, x: i32, y: i32, len: u32) {}
 fn vline(env: FunctionEnvMut<WasmerRuntimeEnv>, x: i32, y: i32, len: u32) {}
 fn oval(env: FunctionEnvMut<WasmerRuntimeEnv>, x: i32, y: i32, width: u32, height: u32) {}
