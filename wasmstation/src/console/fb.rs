@@ -3,17 +3,23 @@
 use std::ops::Range;
 
 use crate::{
-    wasm4::{BLIT_2BPP, SCREEN_SIZE, FRAMEBUFFER_SIZE},
+    wasm4::{BLIT_2BPP, SCREEN_SIZE},
     Sink, Source,
 };
 
-impl<T: Copy> Sink<T> for Vec<T> {
+impl<T> Sink<T> for Vec<T>
+where
+    T: Copy,
+{
     fn set_item_at(&mut self, offset: usize, item: T) {
         self[offset] = item
     }
 }
 
-impl<T: Copy> Source<T> for Vec<T> {
+impl<T> Source<T> for Vec<T>
+where
+    T: Copy,
+{
     fn item_at(&self, offset: usize) -> T {
         self[offset]
     }
@@ -66,8 +72,8 @@ pub(crate) fn pixel_width_of_flags(flags: u32) -> u32 {
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn blit_sub<S: Source<u8>, T: Source<u8> + Sink<u8>>(
-    fb: &mut T,
+pub(crate) fn blit_sub<S, T>(
+    target: &mut T,
     sprite: &S,
     x: i32,
     y: i32,
@@ -78,7 +84,10 @@ pub(crate) fn blit_sub<S: Source<u8>, T: Source<u8> + Sink<u8>>(
     stride: u32,
     flags: u32,
     draw_colors: u16,
-) {
+) where
+    S: Source<u8>,
+    T: Source<u8> + Sink<u8>,
+{
     let pixel_width = pixel_width_of_flags(flags);
 
     let num_bits_in_sprite = stride * height * pixel_width;
@@ -175,10 +184,10 @@ pub(crate) fn blit_sub<S: Source<u8>, T: Source<u8> + Sink<u8>>(
             pixbuf_len -= 8;
 
             // apply src_byte to target byte in frame buffer
-            let mut tgt_byte = fb.item_at(n as usize);
+            let mut tgt_byte = target.item_at(n as usize);
             tgt_byte &= mask_byte;
             tgt_byte |= src_byte;
-            fb.set_item_at(n as usize, tgt_byte)
+            target.set_item_at(n as usize, tgt_byte)
         }
 
         // move start index one screen line below
@@ -275,7 +284,6 @@ fn test_remap_draw_colors() {
     );
 }
 
-
 // see https://github.com/aduros/wasm4/blob/main/runtimes/native/src/framebuffer.c
 // who in turn took it from https://github.com/nesbox/TIC-80/blob/master/src/core/draw.c
 pub(crate) fn line<T: Source<u8> + Sink<u8>>(
@@ -311,7 +319,7 @@ pub(crate) fn line<T: Source<u8> + Sink<u8>>(
 
     // we won't have to ever go through the entirety of FRAMEBUFFER_SIZE,
     // I just added this so the loop will stop incase something goes really wrong.
-    for _ in 0..FRAMEBUFFER_SIZE {
+    for _ in 0..crate::wasm4::FRAMEBUFFER_SIZE {
         set_pixel_unclipped(fb, x1, y1, stroke_color);
 
         if x1 == x2 && y1 == y2 {
