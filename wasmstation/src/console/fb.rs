@@ -67,7 +67,7 @@ pub(crate) fn pixel_width_of_flags(flags: u32) -> u32 {
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn blit_sub<S: Source<u8>, T: Source<u8> + Sink<u8>>(
-    target: &mut T,
+    fb: &mut T,
     sprite: &S,
     x: i32,
     y: i32,
@@ -175,10 +175,10 @@ pub(crate) fn blit_sub<S: Source<u8>, T: Source<u8> + Sink<u8>>(
             pixbuf_len -= 8;
 
             // apply src_byte to target byte in frame buffer
-            let mut tgt_byte = target.item_at(n as usize);
+            let mut tgt_byte = fb.item_at(n as usize);
             tgt_byte &= mask_byte;
             tgt_byte |= src_byte;
-            target.set_item_at(n as usize, tgt_byte)
+            fb.set_item_at(n as usize, tgt_byte)
         }
 
         // move start index one screen line below

@@ -179,28 +179,26 @@ fn blit_sub(
     flags: u32,
 ) {
     let view = env.data().memory.view(&env.as_store_ref());
-    let num_bits = stride * (height + src_y) * crate::console::fb::pixel_width_of_flags(flags);
+    let num_bits = stride * (height + src_y) * console::fb::pixel_width_of_flags(flags);
     let len = (num_bits + 7) / 8;
     let sprite_slice = sprite.slice(&view, len).unwrap();
-
-    let fb_len = FRAMEBUFFER_SIZE as u32;
-    let fb_slice = WasmPtr::<u8>::new(FRAMEBUFFER_ADDR as u32)
-        .slice(&view, fb_len)
-        .unwrap();
-
-    let draw_colors: u16 = {
-        let mut buf = [0u8; 2];
-        view.read(DRAW_COLORS_ADDR as u64, &mut buf).unwrap();
-        buf[0] as u16 | ((buf[1] as u16) << 8)
-    };
 
     let src = WasmSliceSinkSource {
         slice: sprite_slice,
     };
-    let mut tgt = WasmSliceSinkSource { slice: fb_slice };
+
+    let draw_colors = WasmPtr::<u16>::new(DRAW_COLORS_ADDR as u32)
+        .read(&view)
+        .unwrap();
+
+    let mut fb = WasmSliceSinkSource {
+        slice: WasmPtr::<u8>::new(FRAMEBUFFER_ADDR as u32)
+            .slice(&view, FRAMEBUFFER_SIZE as u32)
+            .unwrap(),
+    };
 
     console::fb::blit_sub(
-        &mut tgt,
+        &mut fb,
         &src,
         x,
         y,
