@@ -1,6 +1,6 @@
 use wasmer::{
     imports, AsStoreRef, Engine, Function, FunctionEnv, FunctionEnvMut, Instance, Memory,
-    MemoryType, Module, Store, TypedFunction, ValueType, WasmPtr, WasmSlice, MemoryView,
+    MemoryType, MemoryView, Module, Store, TypedFunction, ValueType, WasmPtr, WasmSlice,
 };
 
 use crate::{
@@ -124,6 +124,19 @@ impl WasmerRuntimeEnv {
     }
 }
 
+fn get_draw_colors(view: &MemoryView) -> u16 {
+    WasmPtr::<u16>::new(DRAW_COLORS_ADDR as u32)
+        .read(&view)
+        .unwrap()
+}
+
+fn get_framebuffer<'a>(view: &'a MemoryView) -> WasmSliceSinkSource<'a, u8> {
+    let slice = WasmPtr::<u8>::new(FRAMEBUFFER_ADDR as u32)
+        .slice(&view, FRAMEBUFFER_SIZE as u32)
+        .unwrap();
+    WasmSliceSinkSource { slice }
+}
+
 struct WasmSliceSinkSource<'a, T>
 where
     T: ValueType + Copy,
@@ -188,15 +201,7 @@ fn blit_sub(
         slice: sprite_slice,
     };
 
-    let draw_colors = WasmPtr::<u16>::new(DRAW_COLORS_ADDR as u32)
-        .read(&view)
-        .unwrap();
-
-    let mut fb = WasmSliceSinkSource {
-        slice: WasmPtr::<u8>::new(FRAMEBUFFER_ADDR as u32)
-            .slice(&view, FRAMEBUFFER_SIZE as u32)
-            .unwrap(),
-    };
+    let mut fb = get_framebuffer(&view);
 
     console::fb::blit_sub(
         &mut fb,
@@ -209,24 +214,16 @@ fn blit_sub(
         src_y,
         stride,
         flags,
-        draw_colors,
+        get_draw_colors(&view),
     );
 }
 
 fn line(env: FunctionEnvMut<WasmerRuntimeEnv>, x1: i32, y1: i32, x2: i32, y2: i32) {
     let view = env.data().memory.view(&env.as_store_ref());
 
-    let draw_colors = WasmPtr::<u16>::new(DRAW_COLORS_ADDR as u32)
-        .read(&view)
-        .unwrap();
+    let mut fb = get_framebuffer(&view);
 
-    let mut fb = WasmSliceSinkSource {
-        slice: WasmPtr::<u8>::new(FRAMEBUFFER_ADDR as u32)
-            .slice(&view, FRAMEBUFFER_SIZE as u32)
-            .unwrap(),
-    };
-
-    console::fb::line(&mut fb, draw_colors, x1, y1, x2, y2);
+    console::fb::line(&mut fb, get_draw_colors(&view), x1, y1, x2, y2);
 }
 
 fn hline(env: FunctionEnvMut<WasmerRuntimeEnv>, x: i32, y: i32, len: u32) {}
@@ -238,8 +235,8 @@ fn text(env: FunctionEnvMut<WasmerRuntimeEnv>, ptr: WasmPtr<u8>, x: i32, y: i32)
     let view = env.data().memory.view(&env.as_store_ref());
     let w4_string = ptr.read_until(&view, |b|*b==0).unwrap();
 
-    let (mut fb, draw_colors) = get_framebuffer_colors(&view);
-    console::fb::text(&mut fb, &w4_string, x, y, draw_colors)
+    let mut fb = get_framebuffer(&view);
+    console::fb::text(&mut fb, &w4_string, x, y, get_draw_colors(&view))
 }
 
 fn text_utf8(env: FunctionEnvMut<WasmerRuntimeEnv>, ptr: WasmPtr<u8>, length: u32, x: i32, y: i32) {
@@ -247,8 +244,8 @@ fn text_utf8(env: FunctionEnvMut<WasmerRuntimeEnv>, ptr: WasmPtr<u8>, length: u3
     let slice = ptr.slice(&view, length).unwrap();
     let w4_string = slice.read_to_vec().unwrap();
 
-    let (mut fb, draw_colors) = get_framebuffer_colors(&view);
-    console::fb::text(&mut fb, &w4_string, x, y, draw_colors)
+    let mut fb = get_framebuffer(&view);
+    console::fb::text(&mut fb, &w4_string, x, y, get_draw_colors(&view))
 }
 
 fn text_utf16(
@@ -268,18 +265,4 @@ fn tone(
     volume: u32,
     flags: u32,
 ) {
-}
-
-fn get_framebuffer_colors<'a>(view: &'a MemoryView) -> (WasmSliceSinkSource<'a, u8>, u16) {
-    let draw_colors = WasmPtr::<u16>::new(DRAW_COLORS_ADDR as u32)
-        .read(&view)
-        .unwrap();
-
-    let fb = WasmSliceSinkSource {
-        slice: WasmPtr::<u8>::new(FRAMEBUFFER_ADDR as u32)
-            .slice(&view, FRAMEBUFFER_SIZE as u32)
-            .unwrap(),
-    };
-
-    (fb, draw_colors)
 }
