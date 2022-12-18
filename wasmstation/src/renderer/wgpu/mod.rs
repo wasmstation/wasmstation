@@ -15,7 +15,10 @@ use winit::{
 
 use crate::{
     utils,
-    wasm4::{self, FRAMEBUFFER_SIZE, MOUSE_LEFT, MOUSE_MIDDLE, MOUSE_RIGHT, SCREEN_SIZE, BUTTON_1, BUTTON_2, BUTTON_UP, BUTTON_RIGHT, BUTTON_LEFT, BUTTON_DOWN},
+    wasm4::{
+        self, BUTTON_1, BUTTON_2, BUTTON_DOWN, BUTTON_LEFT, BUTTON_RIGHT, BUTTON_UP,
+        FRAMEBUFFER_SIZE, MOUSE_LEFT, MOUSE_MIDDLE, MOUSE_RIGHT, SCREEN_SIZE,
+    },
     Renderer,
 };
 
@@ -392,10 +395,6 @@ impl Renderer for WgpuRenderer {
     fn present(self, mut backend: impl crate::Backend + 'static) {
         let event_loop = EventLoop::new();
         let window = {
-            let size = LogicalSize::new(
-                SCREEN_SIZE * self.display_scale,
-                SCREEN_SIZE * self.display_scale,
-            );
             WindowBuilder::new()
                 .with_title(self.title)
                 .with_inner_size(LogicalSize::new(
@@ -415,11 +414,7 @@ impl Renderer for WgpuRenderer {
 
         let (mut mouse_x, mut mouse_y): (i16, i16) = (0, 0);
         let mut mouse_buttons: u8 = 0;
-
         let mut gamepad1: u8 = 0;
-        let mut _gamepad2: u8 = 0;
-        let mut _gamepad3: u8 = 0;
-        let mut _gamepad4: u8 = 0;
 
         let mut renderer =
             WgpuRendererInternal::new_blocking(&window).expect("initialize renderer");
@@ -450,41 +445,34 @@ impl Renderer for WgpuRenderer {
                             * SCREEN_SIZE as f32) as i16;
                     }
                 }
-                WindowEvent::MouseInput { button, state, .. } => match state {
-                    ElementState::Pressed => match button {
-                        MouseButton::Left => mouse_buttons |= MOUSE_LEFT,
-                        MouseButton::Right => mouse_buttons |= MOUSE_RIGHT,
-                        MouseButton::Middle => mouse_buttons |= MOUSE_MIDDLE,
-                        _ => (),
-                    },
-                    ElementState::Released => match button {
-                        MouseButton::Left => mouse_buttons ^= MOUSE_LEFT,
-                        MouseButton::Right => mouse_buttons ^= MOUSE_RIGHT,
-                        MouseButton::Middle => mouse_buttons ^= MOUSE_MIDDLE,
-                        _ => (),
-                    },
-                },
+                WindowEvent::MouseInput { button, state, .. } => {
+                    let mask = match button {
+                        MouseButton::Left => MOUSE_LEFT,
+                        MouseButton::Right => MOUSE_RIGHT,
+                        MouseButton::Middle => MOUSE_MIDDLE,
+                        _ => 0x0,
+                    };
+
+                    match state {
+                        ElementState::Pressed => mouse_buttons |= mask,
+                        ElementState::Released => mouse_buttons ^= mask,
+                    }
+                }
                 WindowEvent::KeyboardInput { input, .. } => {
                     if let Some(keycode) = input.virtual_keycode {
+                        let mask = match keycode {
+                            VirtualKeyCode::X => BUTTON_1,
+                            VirtualKeyCode::Z => BUTTON_2,
+                            VirtualKeyCode::Up => BUTTON_UP,
+                            VirtualKeyCode::Down => BUTTON_DOWN,
+                            VirtualKeyCode::Left => BUTTON_LEFT,
+                            VirtualKeyCode::Right => BUTTON_RIGHT,
+                            _ => 0x0,
+                        };
+
                         match input.state {
-                            ElementState::Pressed => match keycode {
-                                VirtualKeyCode::X => gamepad1 |= BUTTON_1,
-                                VirtualKeyCode::Z => gamepad1 |= BUTTON_2,
-                                VirtualKeyCode::Up => gamepad1 |= BUTTON_UP,
-                                VirtualKeyCode::Down => gamepad1 |= BUTTON_DOWN,
-                                VirtualKeyCode::Left => gamepad1 |= BUTTON_LEFT,
-                                VirtualKeyCode::Right => gamepad1 |= BUTTON_RIGHT,
-                                _ => (),
-                            },
-                            ElementState::Released => match keycode {
-                                VirtualKeyCode::X => gamepad1 ^= BUTTON_1,
-                                VirtualKeyCode::Z => gamepad1 ^= BUTTON_2,
-                                VirtualKeyCode::Up => gamepad1 ^= BUTTON_UP,
-                                VirtualKeyCode::Down => gamepad1 ^= BUTTON_DOWN,
-                                VirtualKeyCode::Left => gamepad1 ^= BUTTON_LEFT,
-                                VirtualKeyCode::Right => gamepad1 ^= BUTTON_RIGHT,
-                                _ => (),
-                            },
+                            ElementState::Pressed => gamepad1 |= mask,
+                            ElementState::Released => gamepad1 ^= mask,
                         }
                     }
                 }
@@ -492,7 +480,7 @@ impl Renderer for WgpuRenderer {
             },
             Event::RedrawRequested(window_id) if window_id == window.id() => {
                 backend.set_mouse(mouse_x, mouse_y, mouse_buttons);
-                backend.set_gamepad(bytemuck::cast([gamepad1, _gamepad2, _gamepad3, _gamepad4]));
+                backend.set_gamepad(bytemuck::cast([gamepad1, 0, 0, 0]));
 
                 backend.call_update();
                 backend.read_screen(&mut framebuffer, &mut palette);
