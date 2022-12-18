@@ -52,7 +52,7 @@ fn get_sprite_pixel_draw_color<T: Source<u8>>(sprite: &T, fmt: PixelFormat, x: i
             byte & 0x01
         },
         PixelFormat::Blit2BPP => {
-            let mut byte = sprite.item_at((pixel_index >> 3) as usize);
+            let mut byte = sprite.item_at((pixel_index >> 2) as usize);
             byte = byte >> ((pixel_index & 0x03) << 1);
             byte & 0x03
         }
@@ -438,7 +438,7 @@ fn test_blit_sub_atlas() {
     let src_y = 0;
     let width = src_end_x - src_x;
     let height = 1;
-    let sprite = as_fb_vec(0b_00_00_00_01_10_11_01_10_00_00_00_00_00_00_00_00_u32);
+    let sprite =      as_fb_vec(0b_00_00_00_01_10_11_01_10_00_00_00_00_00_00_00_00_u32);
     let stride = (sprite.len()*4) as u32;
 
     // fb is all zeros
@@ -455,11 +455,9 @@ fn test_blit_sub_atlas() {
     // the difference after blitting
     let mut fb =      as_fb_vec(0b_10_10_10_10_10_10_10_10_10_10_10_10_10_10_10_10__u32);
 
-    let x = 3;
-    let y = 0;
-    let expected_fb = as_fb_vec(0b_10_10_10_10_11_00_11_11_11_10_11_10_10_10_10_10__u32);
+    let expected_fb = as_fb_vec(0b_10_10_10_01_10_11_01_10_10_10_10_10_10_10_10_10__u32);
 
-    blit_sub(&mut fb, &sprite, x, y, width, height, src_x, src_y, stride, BLIT_2BPP, draw_colors);
+    blit_sub(&mut fb, &sprite, 3, 0, width, height, src_x, src_y, stride, BLIT_2BPP, draw_colors);
 
     assert_eq!(as_fb_line(&expected_fb), as_fb_line(&fb));
 }
