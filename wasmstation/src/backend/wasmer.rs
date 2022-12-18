@@ -93,7 +93,15 @@ impl Backend for WasmerBackend {
             .expect("read to palette");
     }
 
-    fn set_gamepad(&mut self, gamepad: u32) {}
+    fn set_gamepad(&mut self, gamepad: u32) {
+        let view = self.fn_env.as_ref(&self.store).memory.view(&self.store);
+
+        view.write(
+            wasm4::GAMEPAD1_ADDR as u64,
+            bytemuck::cast_slice(&[gamepad]),
+        )
+        .expect("write to GAMEPAD1_ADDR");
+    }
 
     fn set_mouse(&mut self, x: i16, y: i16, buttons: u8) {
         let view = self.fn_env.as_ref(&self.store).memory.view(&self.store);
@@ -102,6 +110,11 @@ impl Backend for WasmerBackend {
             .expect("write to MOUSE_X_ADDR");
         view.write(wasm4::MOUSE_Y_ADDR as u64, bytemuck::cast_slice(&[y]))
             .expect("write to MOUSE_X_ADDR");
+        view.write(
+            wasm4::MOUSE_BUTTONS_ADDR as u64,
+            bytemuck::cast_slice(&[buttons]),
+        )
+        .expect("write to MOUSE_BUTTONS_ADDR");
     }
 }
 
