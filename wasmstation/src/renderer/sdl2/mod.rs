@@ -65,6 +65,12 @@ impl Renderer for Sdl2Renderer {
         'running: loop {
             backend.call_update();
 
+            let fbdata = surface.without_lock_mut().unwrap();
+            let fbdata: &mut [u8; FRAMEBUFFER_SIZE] =
+                (&mut fbdata[0..FRAMEBUFFER_SIZE]).try_into().unwrap();
+            backend.read_screen(fbdata, &mut raw_colors);
+            expand_fb_to_index8(fbdata);
+
             // read palette for this frame
             for c in 0..4 {
                 colors[c] = Color::RGB(
@@ -73,12 +79,6 @@ impl Renderer for Sdl2Renderer {
                     raw_colors[4 * c + 0],
                 )
             }
-
-            let fbdata = surface.without_lock_mut().unwrap();
-            let fbdata: &mut [u8; FRAMEBUFFER_SIZE] =
-                (&mut fbdata[0..FRAMEBUFFER_SIZE]).try_into().unwrap();
-            backend.read_screen(fbdata, &mut raw_colors);
-            expand_fb_to_index8(fbdata);
 
             let palette = Palette::with_colors(&colors).unwrap();
             surface.set_palette(&palette).unwrap();
