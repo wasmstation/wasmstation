@@ -40,6 +40,7 @@ impl WasmerBackend {
                 "vline" => Function::new_typed_with_env(&mut store, &fn_env, vline),
                 "oval" => Function::new_typed_with_env(&mut store, &fn_env, oval),
                 "rect" => Function::new_typed_with_env(&mut store, &fn_env, rect),
+                "text" => Function::new_typed_with_env(&mut store, &fn_env, text),
                 "textUtf8" => Function::new_typed_with_env(&mut store, &fn_env, text_utf8),
                 "textUtf16" => Function::new_typed_with_env(&mut store, &fn_env, text_utf16),
                 "tone" => Function::new_typed_with_env(&mut store, &fn_env, tone),
@@ -232,6 +233,8 @@ fn hline(env: FunctionEnvMut<WasmerRuntimeEnv>, x: i32, y: i32, len: u32) {}
 fn vline(env: FunctionEnvMut<WasmerRuntimeEnv>, x: i32, y: i32, len: u32) {}
 fn oval(env: FunctionEnvMut<WasmerRuntimeEnv>, x: i32, y: i32, width: u32, height: u32) {}
 fn rect(env: FunctionEnvMut<WasmerRuntimeEnv>, x: i32, y: i32, width: u32, height: u32) {}
+fn text(env: FunctionEnvMut<WasmerRuntimeEnv>, ptr: WasmPtr<u8>, x: i32, y: i32) {
+}
 fn text_utf8(env: FunctionEnvMut<WasmerRuntimeEnv>, ptr: WasmPtr<u8>, length: u32, x: i32, y: i32) {
 }
 fn text_utf16(
