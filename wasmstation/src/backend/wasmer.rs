@@ -1,6 +1,6 @@
 use wasmer::{
     imports, AsStoreRef, Engine, Function, FunctionEnv, FunctionEnvMut, Instance, Memory,
-    MemoryType, Module, Store, TypedFunction, ValueType, WasmPtr, WasmSlice,
+    MemoryType, MemoryView, Module, Store, TypedFunction, ValueType, WasmPtr, WasmSlice,
 };
 
 use crate::{
@@ -123,6 +123,18 @@ impl WasmerRuntimeEnv {
     }
 }
 
+fn get_draw_colors(view: &MemoryView) -> u16 {
+    WasmPtr::<u16>::new(DRAW_COLORS_ADDR as u32)
+        .read(&view)
+        .unwrap()
+}
+
+fn get_framebuffer<'a>(view: &'a MemoryView) -> WasmSlice<'a, u8> {
+    WasmPtr::<u8>::new(FRAMEBUFFER_ADDR as u32)
+        .slice(&view, FRAMEBUFFER_SIZE as u32)
+        .unwrap()
+}
+
 struct WasmSliceSinkSource<'a, T>
 where
     T: ValueType + Copy,
@@ -187,14 +199,8 @@ fn blit_sub(
         slice: sprite_slice,
     };
 
-    let draw_colors = WasmPtr::<u16>::new(DRAW_COLORS_ADDR as u32)
-        .read(&view)
-        .unwrap();
-
     let mut fb = WasmSliceSinkSource {
-        slice: WasmPtr::<u8>::new(FRAMEBUFFER_ADDR as u32)
-            .slice(&view, FRAMEBUFFER_SIZE as u32)
-            .unwrap(),
+        slice: get_framebuffer(&view),
     };
 
     console::fb::blit_sub(
@@ -208,24 +214,18 @@ fn blit_sub(
         src_y,
         stride,
         flags,
-        draw_colors,
+        get_draw_colors(&view),
     );
 }
 
 fn line(env: FunctionEnvMut<WasmerRuntimeEnv>, x1: i32, y1: i32, x2: i32, y2: i32) {
     let view = env.data().memory.view(&env.as_store_ref());
 
-    let draw_colors = WasmPtr::<u16>::new(DRAW_COLORS_ADDR as u32)
-        .read(&view)
-        .unwrap();
-
     let mut fb = WasmSliceSinkSource {
-        slice: WasmPtr::<u8>::new(FRAMEBUFFER_ADDR as u32)
-            .slice(&view, FRAMEBUFFER_SIZE as u32)
-            .unwrap(),
+        slice: get_framebuffer(&view),
     };
 
-    console::fb::line(&mut fb, draw_colors, x1, y1, x2, y2);
+    console::fb::line(&mut fb, get_draw_colors(&view), x1, y1, x2, y2);
 }
 
 fn hline(env: FunctionEnvMut<WasmerRuntimeEnv>, x: i32, y: i32, len: u32) {}
