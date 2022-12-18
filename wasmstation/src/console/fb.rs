@@ -53,7 +53,7 @@ fn get_sprite_pixel_draw_color<T: Source<u8>>(sprite: &T, fmt: PixelFormat, x: i
         },
         PixelFormat::Blit2BPP => {
             let mut byte = sprite.item_at((pixel_index >> 3) as usize);
-            byte = byte >> (pixel_index & 0x03);
+            byte = byte >> ((pixel_index & 0x03) << 1);
             byte & 0x03
         }
     }
@@ -373,7 +373,7 @@ fn test_blit_sub_impl_1byte_misaligned() {
 
     blit_sub(&mut fb, &sprite, 2, 0, 4, 1, 0, 0, 8, BLIT_2BPP, draw_colors);
 
-    assert_eq!(fb, expected_fb)
+    assert_eq!(as_fb_line(&fb), as_fb_line(&expected_fb))
 }
 
 // Convert arbitrary primitive integer types (aka u8..u128/i8..i128) 
