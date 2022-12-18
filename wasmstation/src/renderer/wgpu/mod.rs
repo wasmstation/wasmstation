@@ -9,7 +9,7 @@ use winit::{
     dpi::{LogicalSize, PhysicalPosition, PhysicalSize},
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
-    window::{Window, WindowBuilder},
+    window::{Window, WindowBuilder, Theme}, platform::unix::WindowBuilderExtUnix,
 };
 
 use crate::{
@@ -398,6 +398,7 @@ impl Renderer for WgpuRenderer {
                     SCREEN_SIZE * self.display_scale,
                 ))
                 .with_min_inner_size(LogicalSize::new(SCREEN_SIZE, SCREEN_SIZE))
+                .with_wayland_csd_theme(Theme::Dark)
                 .build(&event_loop)
                 .unwrap()
         };
@@ -433,9 +434,10 @@ impl Renderer for WgpuRenderer {
                         && position.x <= (window_size.width - border_x)
                         && position.y <= (window_size.height - border_y)
                     {
-                        println!("in the box!");
-                    } else {
-                        println!("not in the box!");
+                        mouse_x = (((position.x - border_x) as f32 / game_size as f32)
+                            * SCREEN_SIZE as f32) as i16;
+                        mouse_y = (((position.y - border_y) as f32 / game_size as f32)
+                            * SCREEN_SIZE as f32) as i16;
                     }
                 }
                 _ => (),
