@@ -25,6 +25,20 @@ where
     }
 }
 
+fn set_pixel<T: Source<u8> + Sink<u8>>(fb: &mut T, x: i32, y: i32, color: u8) {
+    let idx: usize = (SCREEN_SIZE as usize * y as usize + x as usize) >> 2;
+    let shift = (x & 0x3) << 1;
+    let mask = 0x3 << shift;
+
+    fb.set_item_at(idx, (color << shift) | (fb.item_at(idx) & !mask));
+}
+
+fn set_pixel_unclipped<T: Source<u8> + Sink<u8>>(fb: &mut T, x: i32, y: i32, color: u8) {
+    if x >= 0 && x < SCREEN_SIZE as i32 && y >= 0 && y < SCREEN_SIZE as i32 {
+        set_pixel(fb, x, y, color);
+    }
+}
+
 //  overlay_r+offset   |.........|
 //  base_r             |...........|
 //  result+offset      |.......|
@@ -268,4 +282,60 @@ fn test_remap_draw_colors() {
         (0b01001000, 0b00110000),
         remap_draw_colors(0b11100001, 4, 0x2013)
     );
+}
+
+// see https://github.com/aduros/wasm4/blob/main/runtimes/native/src/framebuffer.c
+// who in turn took it from https://github.com/nesbox/TIC-80/blob/master/src/core/draw.c
+pub(crate) fn line<T: Source<u8> + Sink<u8>>(
+    fb: &mut T,
+    draw_colors: u16,
+    mut x1: i32,
+    mut y1: i32,
+    mut x2: i32,
+    mut y2: i32,
+) {
+    let dc0: u8 = (draw_colors & 0xf) as u8;
+    if dc0 == 0 {
+        return;
+    }
+
+    let stroke_color: u8 = (dc0 - 1) & 0x3;
+
+    if y1 > y2 {
+        let swap = x1;
+        x1 = x2;
+        x2 = swap;
+
+        let swap = y1;
+        y1 = y2;
+        y2 = swap;
+    }
+
+    let dx = (x2 - x1).abs();
+    let sx = if x1 < x2 { 1 } else { -1 };
+    let dy = y2 - y1;
+
+    let mut err = (if dx > dy { dx } else { -dy }) / 2;
+
+    // we won't have to ever go through the entirety of FRAMEBUFFER_SIZE,
+    // I just added this so the loop will stop incase something goes really wrong.
+    for _ in 0..crate::wasm4::FRAMEBUFFER_SIZE {
+        set_pixel_unclipped(fb, x1, y1, stroke_color);
+
+        if x1 == x2 && y1 == y2 {
+            break;
+        }
+
+        let err2 = err;
+
+        if err2 > -dx {
+            err -= dy;
+            x1 += sx;
+        }
+
+        if err2 < dy {
+            err += dx;
+            y1 += 1;
+        }
+    }
 }

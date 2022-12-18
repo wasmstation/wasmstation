@@ -4,7 +4,7 @@ use wasmer::{
 };
 
 use crate::{
-    utils,
+    console, utils,
     wasm4::{self, DRAW_COLORS_ADDR, FRAMEBUFFER_ADDR, FRAMEBUFFER_SIZE},
     Backend, Sink, Source,
 };
@@ -179,28 +179,26 @@ fn blit_sub(
     flags: u32,
 ) {
     let view = env.data().memory.view(&env.as_store_ref());
-    let num_bits = stride * (height + src_y) * crate::console::fb::pixel_width_of_flags(flags);
+    let num_bits = stride * (height + src_y) * console::fb::pixel_width_of_flags(flags);
     let len = (num_bits + 7) / 8;
     let sprite_slice = sprite.slice(&view, len).unwrap();
-
-    let fb_len = FRAMEBUFFER_SIZE as u32;
-    let fb_slice = WasmPtr::<u8>::new(FRAMEBUFFER_ADDR as u32)
-        .slice(&view, fb_len)
-        .unwrap();
-
-    let draw_colors: u16 = {
-        let mut buf = [0u8; 2];
-        view.read(DRAW_COLORS_ADDR as u64, &mut buf).unwrap();
-        buf[0] as u16 | ((buf[1] as u16) << 8)
-    };
 
     let src = WasmSliceSinkSource {
         slice: sprite_slice,
     };
-    let mut tgt = WasmSliceSinkSource { slice: fb_slice };
 
-    crate::console::fb::blit_sub(
-        &mut tgt,
+    let draw_colors = WasmPtr::<u16>::new(DRAW_COLORS_ADDR as u32)
+        .read(&view)
+        .unwrap();
+
+    let mut fb = WasmSliceSinkSource {
+        slice: WasmPtr::<u8>::new(FRAMEBUFFER_ADDR as u32)
+            .slice(&view, FRAMEBUFFER_SIZE as u32)
+            .unwrap(),
+    };
+
+    console::fb::blit_sub(
+        &mut fb,
         &src,
         x,
         y,
@@ -214,7 +212,22 @@ fn blit_sub(
     );
 }
 
-fn line(env: FunctionEnvMut<WasmerRuntimeEnv>, x1: i32, y1: i32, x2: i32, y2: i32) {}
+fn line(env: FunctionEnvMut<WasmerRuntimeEnv>, x1: i32, y1: i32, x2: i32, y2: i32) {
+    let view = env.data().memory.view(&env.as_store_ref());
+
+    let draw_colors = WasmPtr::<u16>::new(DRAW_COLORS_ADDR as u32)
+        .read(&view)
+        .unwrap();
+
+    let mut fb = WasmSliceSinkSource {
+        slice: WasmPtr::<u8>::new(FRAMEBUFFER_ADDR as u32)
+            .slice(&view, FRAMEBUFFER_SIZE as u32)
+            .unwrap(),
+    };
+
+    console::fb::line(&mut fb, draw_colors, x1, y1, x2, y2);
+}
+
 fn hline(env: FunctionEnvMut<WasmerRuntimeEnv>, x: i32, y: i32, len: u32) {}
 fn vline(env: FunctionEnvMut<WasmerRuntimeEnv>, x: i32, y: i32, len: u32) {}
 fn oval(env: FunctionEnvMut<WasmerRuntimeEnv>, x: i32, y: i32, width: u32, height: u32) {}
