@@ -4,7 +4,6 @@ use std::{ops::Range, mem::size_of};
 
 use num_traits::{PrimInt, Unsigned};
 
-use winit::dpi::Pixel;
 
 use crate::{
     wasm4::{BLIT_2BPP, SCREEN_SIZE, BLIT_FLIP_X, BLIT_ROTATE, BLIT_FLIP_Y},
@@ -33,6 +32,7 @@ where
 enum PixelFormat {
     Blit1BPP,
     Blit2BPP,
+    Framebuffer,
 }
 impl PixelFormat {
     fn from_blit_flags(flags: u32) -> Self {
@@ -55,7 +55,8 @@ fn get_sprite_pixel_draw_color<T: Source<u8>>(sprite: &T, fmt: PixelFormat, x: i
             let mut byte = sprite.item_at((pixel_index >> 2) as usize);
             byte = byte >> (6-((pixel_index & 0x03) << 1));
             byte & 0x03
-        }
+        },
+        _ => panic!("invalid pixel format for reading sprite data")
     }
 }
 
@@ -364,7 +365,7 @@ fn test_blit_sub_impl_1byte_misaligned() {
     // see this in the indentation we use. The example
     // is drawing on an empty framebuffer (filled with
     // 00 pixels).
-    let sprite =            as_fb_vec(0b_10_11_11_10__u8);
+    let sprite =            as_b2_vec(0b_10_11_11_10__u8);
     let mut fb =      as_fb_vec(0b_00_00_00_00_00_00_00_00__u16);
 
     // as a result, half the bits are written into the each side of the
@@ -376,27 +377,42 @@ fn test_blit_sub_impl_1byte_misaligned() {
     assert_eq!(as_fb_line(&fb), as_fb_line(&expected_fb))
 }
 
-// Convert arbitrary primitive integer types (aka u8..u128/i8..i128) 
-// into a Vec<u8> for use in framebuffer related functions, allowing
-// to define sprites and framebuffer patterns inline with rusts
-// integer (bit) literals.
-// This is needed for testing so that we can conveniently spell out bit
-// patterns in various sizes, yielding them as Vec<u8>
+/// create a Vec<u8> of framebuffer data from pixels from an integer literal
 fn as_fb_vec<T>(n: T) -> Vec<u8>
 where T: PrimInt + Unsigned
 {
-    as_pix_vec(n, 2)
+    as_pix_vec(n, PixelFormat::Framebuffer)
 }
 
+/// create a Vec<u8> of 1BPP sprite data from pixels from an integer literal
 fn as_b1_vec<T>(n: T) -> Vec<u8>
 where T: PrimInt + Unsigned
 {
-    as_pix_vec(n, 1)
+    as_pix_vec(n, PixelFormat::Blit1BPP)
 }
 
-fn as_pix_vec<T>(mut n: T, pix_size: usize) -> Vec<u8>
+/// create a Vec<u8> of 2BPP sprite data from pixels from an integer literal
+fn as_b2_vec<T>(n: T) -> Vec<u8>
 where T: PrimInt + Unsigned
 {
+    as_pix_vec(n, PixelFormat::Blit2BPP)
+}
+
+/// Convert arbitrary primitive integer types (aka u8..u128/i8..i128) 
+/// into a Vec<u8> for use in framebuffer related functions, allowing
+/// to define sprites and framebuffer patterns inline with Rust's
+/// integer (bit) literals.
+/// This is needed for testing so that we can conveniently spell out bit
+/// patterns in various sizes, yielding them as Vec<u8>
+fn as_pix_vec<T>(n: T, fmt: PixelFormat) -> Vec<u8>
+where T: PrimInt + Unsigned
+{
+    let (pix_size, reverse_pixel_order) = match fmt {
+        PixelFormat::Blit1BPP => (1, false),
+        PixelFormat::Blit2BPP => (2, false),
+        PixelFormat::Framebuffer => (2, true),
+    };
+
     let mut v = Vec::with_capacity(size_of::<T>());
     let mask = T::from(0xff>>(8-pix_size)).unwrap();
     for i in 0..size_of::<T>() {
@@ -404,8 +420,13 @@ where T: PrimInt + Unsigned
         let mut b = 0u8;
         for j in 0..(8/pix_size) {
             b = b << pix_size;
-            b |= n.bitand(mask).to_u8().unwrap();
-            n = n.shr(pix_size);
+            let shift = if reverse_pixel_order {
+                j*pix_size
+            } else {
+                8-(j+1)*pix_size
+            };
+            let pix = n.shr(i*8 + shift);
+            b |= pix.bitand(mask).to_u8().unwrap();
         }
         v.insert(0, b);
     }
@@ -414,18 +435,23 @@ where T: PrimInt + Unsigned
 }
 
 #[test]
-fn test_as_fb_vec_u8() {
+fn test_as_fb_vec() {
     // happy case, coming from u8
-    assert_eq!(vec![0b10010110u8], as_fb_vec(0b10010110u8));
+    assert_eq!(vec![0b_10_01_01_10_u8], as_fb_vec(0b_10_01_01_10_u8));
 
     // u16 into a vec of 2 x u8 - the two tests are equivalent, but
     // shows we can write it also as 0x as well as a 0b literal
-    assert_eq!(vec![0b_11000111_u8, 0b_10010110_u8], as_fb_vec(0b_11010011_10010110_u16));
+    assert_eq!(vec![0b_11_00_01_11_u8, 0b_10_01_01_10_u8], as_fb_vec(0b_11_01_00_11__10_01_01_10_u16));
 }
 
 #[test]
 fn test_as_b1_vec() {
-    assert_eq!(vec![0b01110000u8], as_b1_vec(0b__0__0__0__0__1__1__1__0_u8))
+    assert_eq!(vec![0b__0__0__0__0__1__1__1__0_u8], as_b1_vec(0b__0__0__0__0__1__1__1__0_u8))
+}
+
+#[test]
+fn test_as_b2_vec() {
+    assert_eq!(vec![0b_11_01_00_11_u8, 0b_10_01_01_10_u8], as_b1_vec(0b_11_01_00_11__10_01_01_10_u16))
 }
 
 #[test]
@@ -438,7 +464,7 @@ fn test_blit_sub_atlas() {
     let src_y = 0;
     let width = src_end_x - src_x;
     let height = 1;
-    let sprite =      as_fb_vec(0b_00_00_00_01_10_11_01_10_00_00_00_00_00_00_00_00_u32);
+    let sprite =      as_b2_vec(0b_00_00_00_01_10_11_01_10_00_00_00_00_00_00_00_00_u32);
     let stride = (sprite.len()*4) as u32;
 
     // fb is all zeros
@@ -448,8 +474,6 @@ fn test_blit_sub_atlas() {
     let expected_fb = as_fb_vec(0b_00_00_00_01_10_11_01_10_00_00_00_00_00_00_00_00_u32);
     blit_sub(&mut fb, &sprite, 3, 0, width, height, src_x, src_y, stride, BLIT_2BPP, draw_colors);
     assert_eq!(as_fb_line(&expected_fb), as_fb_line(&fb));
-
-
 
     // initial fb. we have it filled with pixels set to 10 so we can spot
     // the difference after blitting
