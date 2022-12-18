@@ -21,14 +21,11 @@ fn expand_fb_to_index8(fbtexdata: &mut [u8]) {
 
     for n in (0..fbtexdata.len() / 4).rev() {
         let buf = fbtexdata[n];
-        let m = 4 * n + 3;
-        fbtexdata[m] = buf >> 6;
-        let m = m - 1;
-        fbtexdata[m] = (buf >> 4) & 0b00000011;
-        let m = m - 1;
-        fbtexdata[m] = (buf >> 2) & 0b00000011;
-        let m = m - 1;
-        fbtexdata[m] = buf & 0b00000011;
+        let m = 4 * n;
+        fbtexdata[m+3] = buf >> 6;
+        fbtexdata[m+2] = (buf >> 4) & 0b00000011;
+        fbtexdata[m+1] = (buf >> 2) & 0b00000011;
+        fbtexdata[m+0] = buf & 0b00000011;
     }
 }
 
@@ -71,9 +68,9 @@ impl Renderer for Sdl2Renderer {
             // read palette for this frame
             for c in 0..4 {
                 colors[c] = Color::RGB(
-                    raw_colors[3 * c],
-                    raw_colors[3 * c + 1],
-                    raw_colors[3 * c + 2],
+                    raw_colors[4 * c + 2],
+                    raw_colors[4 * c + 1],
+                    raw_colors[4 * c + 0],
                 )
             }
 

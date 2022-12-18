@@ -48,12 +48,12 @@ fn get_sprite_pixel_draw_color<T: Source<u8>>(sprite: &T, fmt: PixelFormat, x: i
     match fmt {
         PixelFormat::Blit1BPP => {
             let mut byte = sprite.item_at((pixel_index >> 3) as usize);
-            byte = byte >> (pixel_index & 0x07);
+            byte = byte >> (7-(pixel_index & 0x07));
             byte & 0x01
         },
         PixelFormat::Blit2BPP => {
             let mut byte = sprite.item_at((pixel_index >> 2) as usize);
-            byte = byte >> ((pixel_index & 0x03) << 1);
+            byte = byte >> (6-((pixel_index & 0x03) << 1));
             byte & 0x03
         }
     }
