@@ -115,7 +115,7 @@ impl WgpuRendererInternal {
                 origin: Origin3d::ZERO,
                 aspect: TextureAspect::All,
             },
-            &utils::default_framebuffer(),
+            &utils::empty_framebuffer(),
             ImageDataLayout {
                 offset: 0,
                 bytes_per_row: NonZeroU32::new(6400),
@@ -410,7 +410,7 @@ impl Renderer for WgpuRenderer {
 
         backend.call_start();
 
-        let mut framebuffer: [u8; wasm4::FRAMEBUFFER_SIZE] = utils::default_framebuffer();
+        let mut framebuffer: [u8; wasm4::FRAMEBUFFER_SIZE] = utils::empty_framebuffer();
         let mut palette: [u8; 16] = utils::default_palette();
 
         let (mut mouse_x, mut mouse_y): (i16, i16) = (0, 0);

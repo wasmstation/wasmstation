@@ -64,7 +64,7 @@ impl Backend for WasmerBackend {
 
         // clear the framebuffer (important)
         WasmPtr::<[u8; wasm4::FRAMEBUFFER_SIZE]>::new(wasm4::FRAMEBUFFER_ADDR as u32)
-            .write(&view, utils::default_framebuffer())
+            .write(&view, utils::empty_framebuffer())
             .expect("clear framebuffer");
 
         if let Ok(update) = self.instance.exports.get_function("update") {
@@ -134,14 +134,6 @@ impl WasmerRuntimeEnv {
             wasm4::DRAW_COLORS_ADDR as u64,
             &utils::default_draw_colors(),
         )?;
-        mem_view.write(
-            wasm4::FRAMEBUFFER_ADDR as u64,
-            &utils::default_framebuffer(),
-        )?;
-
-        // each are u16, so I put in u8 + u8
-        mem_view.write(wasm4::MOUSE_X_ADDR as u64, &[0, 0])?;
-        mem_view.write(wasm4::MOUSE_Y_ADDR as u64, &[0, 0])?;
 
         Ok(Self { memory })
     }

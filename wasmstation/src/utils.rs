@@ -19,7 +19,7 @@ pub fn default_draw_colors() -> [u8; 2] {
         .expect("wrong draw colors size")
 }
 
-pub fn default_framebuffer() -> [u8; FRAMEBUFFER_SIZE] {
+pub fn empty_framebuffer() -> [u8; FRAMEBUFFER_SIZE] {
     (0..6400)
         .into_iter()
         .map(|_| 0x0000)
