@@ -2,8 +2,10 @@
 
 use std::ops::Range;
 
+use winit::dpi::Pixel;
+
 use crate::{
-    wasm4::{BLIT_2BPP, SCREEN_SIZE},
+    wasm4::{BLIT_2BPP, SCREEN_SIZE, BLIT_FLIP_X, BLIT_ROTATE, BLIT_FLIP_Y},
     Sink, Source,
 };
 
@@ -22,6 +24,36 @@ where
 {
     fn item_at(&self, offset: usize) -> T {
         self[offset]
+    }
+}
+
+#[derive(Clone, Copy)]
+enum PixelFormat {
+    Blit1BPP,
+    Blit2BPP,
+}
+impl PixelFormat {
+    fn from_blit_flags(flags: u32) -> Self {
+        if flags & (BLIT_2BPP as u32) != 0 {
+            Self::Blit2BPP
+        } else {
+            Self::Blit1BPP
+        }
+    }
+}
+fn get_sprite_pixel_draw_color<T: Source<u8>>(sprite: &T, fmt: PixelFormat, x: i32, y: i32, width: i32) -> u8 {
+    let pixel_index = width * y + x;
+    match fmt {
+        PixelFormat::Blit1BPP => {
+            let mut byte = sprite.item_at((pixel_index >> 3) as usize);
+            byte = byte >> (pixel_index & 0x07);
+            byte & 0x01
+        },
+        PixelFormat::Blit2BPP => {
+            let mut byte = sprite.item_at((pixel_index >> 3) as usize);
+            byte = byte >> (pixel_index & 0x03);
+            byte & 0x03
+        }
     }
 }
 
@@ -71,8 +103,99 @@ pub(crate) fn pixel_width_of_flags(flags: u32) -> u32 {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
+fn calculate_target_range(tgt_coord: i32, tgt_extent: i32, clip_range: Range<i32>) -> Range<i32>{
+    Range {
+        start: i32::max(clip_range.start, tgt_coord) - tgt_coord,
+        end:   i32::min(tgt_extent, clip_range.end - tgt_coord),
+    }
+}
+
 pub(crate) fn blit_sub<S, T>(
+    target: &mut T,
+    sprite: &S,
+    x: i32,
+    y: i32,
+    width: u32,
+    height: u32,
+    src_x: u32,
+    src_y: u32,
+    stride: u32,
+    flags: u32,
+    draw_colors: u16,
+) where
+    S: Source<u8>,
+    T: Source<u8> + Sink<u8>,
+{
+    // we probably should change the signature to avoid signedness conversions
+    let src_x = src_x as i32;
+    let src_y = src_y as i32;
+    let width = width as i32;
+    let height = height as i32;
+    let stride = stride as i32;
+
+    let flip_x = flags & BLIT_FLIP_X != 0;
+    let flip_y = flags & BLIT_FLIP_Y != 0;
+    let rotate = flags & BLIT_ROTATE != 0;
+
+    let mut flip_x = flip_x;
+
+    // for now, this is clips to the screen edge. 
+    // but it doesn't need to be that way; we may clip smaller too
+    let clip_range_x = 0..(SCREEN_SIZE as i32);
+    let clip_range_y = 0..(SCREEN_SIZE as i32);
+
+    // ranges within the target window, local to target
+    // start coordinates x and y:
+    let w_range_x;
+    let w_range_y;
+    if rotate {
+        flip_x = !flip_x;
+        w_range_x = calculate_target_range(y, height, clip_range_y);
+        w_range_y = calculate_target_range(x, width, clip_range_x);
+    } else {
+        w_range_x = calculate_target_range(x, width, clip_range_x);
+        w_range_y = calculate_target_range(x, height, clip_range_y);
+    }
+
+    let fmt = PixelFormat::from_blit_flags(flags);
+
+    for wy in w_range_y.clone() {
+        for wx in w_range_x.clone() {
+
+            // target coordinates where the sprite pixel will be written to,
+            // relative to target start coordinates x,y
+            // swap wx, wy if we rotate
+            let tgt_location = if rotate {
+                (wy, wx)
+            } else {
+                (wx, wy)
+            };
+            let tx = x + tgt_location.0;
+            let ty = y + tgt_location.1;
+
+            // source coordinates where the sprite pixel will be read from,
+            // relative to sprite start coordinates src_x, src_y
+            let src_location = (
+                if flip_x { width  - wx - 1 } else { wx },
+                if flip_y { height - wy - 1 } else { wy }
+            );
+            let sx = src_x + src_location.0;
+            let sy = src_y + src_location.1;
+
+            let draw_color_idx = get_sprite_pixel_draw_color(sprite, fmt, sx, sy, stride);
+            let (color, opaque) = remap_draw_color(draw_color_idx, draw_colors);
+            if opaque {
+                set_pixel_unclipped(target, tx, ty, color)
+            }
+        }
+    }
+
+
+}
+
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn blit_sub_multipixel<S, T>(
     target: &mut T,
     sprite: &S,
     x: i32,
@@ -258,18 +381,28 @@ fn test_conv_1bpp_to_2bpp() {
     assert_eq!(0b0101010100000000, conv_1bpp_to_2bpp(0b0000000011110000));
 }
 
+fn remap_draw_color(draw_color_idx: u8, draw_colors: u16) -> (u8, bool) {
+    let draw_color = (draw_colors as u32 >> (draw_color_idx * 4)) & 0b111;
+    if draw_color == 0 {
+        (0, false)
+    } else {
+        let palette_index = (draw_color - 1) as u8;
+        (palette_index, true)
+    }
+}
+
 fn remap_draw_colors(sprite_word: u32, sprite_word_pixels: u32, draw_colors: u16) -> (u32, u32) {
     let mut s = 0;
     let mut m = 0;
     for n in 0..sprite_word_pixels {
         let shift = 2 * n;
         let draw_color_idx = (sprite_word >> shift) & 0b11;
-        let draw_color = (draw_colors as u32 >> (draw_color_idx * 4)) & 0b111;
-        if draw_color == 0 {
+
+        let (palette_index, opaque) = remap_draw_color(draw_color_idx as u8, draw_colors);
+        if !opaque {
             m |= 0b11 << shift;
         } else {
-            let palette_index = draw_color - 1;
-            s |= palette_index << shift;
+            s |= (palette_index as u32) << shift
         }
     }
 
