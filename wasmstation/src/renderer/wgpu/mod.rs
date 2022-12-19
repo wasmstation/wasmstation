@@ -6,15 +6,19 @@ use wgpu::{
     *,
 };
 use winit::{
-    dpi::{LogicalSize, PhysicalSize},
-    event::{Event, WindowEvent},
+    dpi::{LogicalSize, PhysicalPosition, PhysicalSize},
+    event::{ElementState, Event, MouseButton, VirtualKeyCode, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
-    window::{Window, WindowBuilder},
+    platform::unix::WindowBuilderExtUnix,
+    window::{Theme, Window, WindowBuilder},
 };
 
 use crate::{
     utils,
-    wasm4::{self, FRAMEBUFFER_SIZE, SCREEN_SIZE},
+    wasm4::{
+        self, BUTTON_1, BUTTON_2, BUTTON_DOWN, BUTTON_LEFT, BUTTON_RIGHT, BUTTON_UP,
+        FRAMEBUFFER_SIZE, MOUSE_LEFT, MOUSE_MIDDLE, MOUSE_RIGHT, SCREEN_SIZE,
+    },
     Renderer,
 };
 
@@ -114,7 +118,7 @@ impl WgpuRendererInternal {
                 origin: Origin3d::ZERO,
                 aspect: TextureAspect::All,
             },
-            &utils::default_framebuffer(),
+            &utils::empty_framebuffer(),
             ImageDataLayout {
                 offset: 0,
                 bytes_per_row: NonZeroU32::new(6400),
@@ -375,11 +379,15 @@ impl WgpuRendererInternal {
 
 pub struct WgpuRenderer {
     pub display_scale: u32,
+    pub title: String,
 }
 
 impl Default for WgpuRenderer {
     fn default() -> Self {
-        Self { display_scale: 3 }
+        Self {
+            display_scale: 3,
+            title: "wasmstation - wgpu".to_string(),
+        }
     }
 }
 
@@ -387,25 +395,26 @@ impl Renderer for WgpuRenderer {
     fn present(self, mut backend: impl crate::Backend + 'static) {
         let event_loop = EventLoop::new();
         let window = {
-            let size = LogicalSize::new(
-                SCREEN_SIZE * self.display_scale,
-                SCREEN_SIZE * self.display_scale,
-            );
             WindowBuilder::new()
-                .with_title("wasmstation")
+                .with_title(self.title)
                 .with_inner_size(LogicalSize::new(
                     SCREEN_SIZE * self.display_scale,
                     SCREEN_SIZE * self.display_scale,
                 ))
                 .with_min_inner_size(LogicalSize::new(SCREEN_SIZE, SCREEN_SIZE))
+                .with_wayland_csd_theme(Theme::Dark)
                 .build(&event_loop)
                 .unwrap()
         };
 
         backend.call_start();
 
-        let mut framebuffer: [u8; wasm4::FRAMEBUFFER_SIZE] = utils::default_framebuffer();
+        let mut framebuffer: [u8; wasm4::FRAMEBUFFER_SIZE] = utils::empty_framebuffer();
         let mut palette: [u8; 16] = utils::default_palette();
+
+        let (mut mouse_x, mut mouse_y): (i16, i16) = (0, 0);
+        let mut mouse_buttons: u8 = 0;
+        let mut gamepad1: u8 = 0;
 
         let mut renderer =
             WgpuRendererInternal::new_blocking(&window).expect("initialize renderer");
@@ -417,9 +426,62 @@ impl Renderer for WgpuRenderer {
                 WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
                     renderer.resize(*new_inner_size)
                 }
+                WindowEvent::CursorMoved { position, .. } => {
+                    let position: PhysicalPosition<u32> =
+                        PhysicalPosition::new(position.x as u32, position.y as u32);
+                    let window_size = renderer.size;
+                    let game_size = window_size.width.min(window_size.height) as u32;
+                    let border_x = (window_size.width - game_size) / 2;
+                    let border_y = (window_size.height - game_size) / 2;
+
+                    if position.x >= border_x
+                        && position.y >= border_y
+                        && position.x <= (window_size.width - border_x)
+                        && position.y <= (window_size.height - border_y)
+                    {
+                        mouse_x = (((position.x - border_x) as f32 / game_size as f32)
+                            * SCREEN_SIZE as f32) as i16;
+                        mouse_y = (((position.y - border_y) as f32 / game_size as f32)
+                            * SCREEN_SIZE as f32) as i16;
+                    }
+                }
+                WindowEvent::MouseInput { button, state, .. } => {
+                    let mask = match button {
+                        MouseButton::Left => MOUSE_LEFT,
+                        MouseButton::Right => MOUSE_RIGHT,
+                        MouseButton::Middle => MOUSE_MIDDLE,
+                        _ => 0x0,
+                    };
+
+                    match state {
+                        ElementState::Pressed => mouse_buttons |= mask,
+                        ElementState::Released => mouse_buttons ^= mask,
+                    }
+                }
+                WindowEvent::KeyboardInput { input, .. } => {
+                    if let Some(keycode) = input.virtual_keycode {
+                        let mask = match keycode {
+                            VirtualKeyCode::X => BUTTON_1,
+                            VirtualKeyCode::Z => BUTTON_2,
+                            VirtualKeyCode::Up => BUTTON_UP,
+                            VirtualKeyCode::Down => BUTTON_DOWN,
+                            VirtualKeyCode::Left => BUTTON_LEFT,
+                            VirtualKeyCode::Right => BUTTON_RIGHT,
+                            _ => 0x0,
+                        };
+
+                        match input.state {
+                            ElementState::Pressed => gamepad1 |= mask,
+                            ElementState::Released => gamepad1 ^= mask,
+                        }
+                    }
+                }
                 _ => (),
             },
             Event::RedrawRequested(window_id) if window_id == window.id() => {
+                backend.set_mouse(mouse_x, mouse_y, mouse_buttons);
+                backend.set_gamepad(bytemuck::cast([gamepad1, 0, 0, 0]));
+
                 backend.call_update();
                 backend.read_screen(&mut framebuffer, &mut palette);
 

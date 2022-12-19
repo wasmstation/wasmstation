@@ -12,7 +12,7 @@ bytemuck = "1.12"
 num-traits = "0.2"
 
 # wgpu
-winit = { version = "0.27", optional = true, default-features = false, features = ["x11"] }
+winit = { version = "0.27", optional = true }
 wgpu = { version = "0.14", optional = true }
 pollster = { version = "0.2", optional = true }
 byteorder = "1.4.3"
