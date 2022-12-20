@@ -10,29 +10,28 @@ edition = "2021"
 anyhow = "1.0"
 bytemuck = "1.12"
 num-traits = "0.2"
+byteorder = "1.4"
 palette = { version = "0.6", default-features = false, features = ["libm"] }
 
-# wgpu
+# wasmer-backend
+wasmer = { version = "3.0", optional = true }
+
+# embedded
+embedded-graphics-core = { version = "0.3", optional = true }
+
+# gpu-renderer
 winit = { version = "0.27", optional = true }
 wgpu = { version = "0.14", optional = true }
 pollster = { version = "0.2", optional = true }
-byteorder = "1.4.3"
 
-# wasmer
-wasmer = { version = "3.0", optional = true }
-
-# embedded-graphics
-embedded-graphics = { version = "0.7", optional = true }
+# cpu-renderer
 embedded-graphics-simulator = { version = "0.4", optional = true }
 
 [features]
-default = [
-    "wasmer-backend", 
-    "wgpu-renderer", 
-    "embedded-renderer"
-] # this is still up for debate obviously
-wgpu-renderer = ["wgpu", "winit", "pollster"]
+default = ["wasmer-backend", "gpu-renderer", "cpu-renderer"]
+
 wasmer-backend = ["wasmer"]
-embedded = ["embedded-graphics"]
-embedded-renderer = ["embedded-graphics-simulator", "embedded"]
-# wasm3-backend = []
+embedded = ["embedded-graphics-core"]
+
+cpu-renderer = ["embedded-graphics-simulator", "embedded"]
+gpu-renderer = ["wgpu", "winit", "pollster"]

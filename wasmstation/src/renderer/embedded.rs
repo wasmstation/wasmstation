@@ -1,4 +1,4 @@
-use embedded_graphics::{pixelcolor::Rgb888, prelude::*};
+use embedded_graphics_core::{prelude::DrawTarget, pixelcolor::Rgb888};
 use palette::Srgb;
 
 use crate::wasm4::{FRAMEBUFFER_SIZE, SCREEN_SIZE};
@@ -23,7 +23,7 @@ pub fn draw<T: DrawTarget<Color = Rgb888>>(
     let x_scale = target_width as f32 / SCREEN_SIZE as f32;
     let y_scale = target_width as f32 / SCREEN_SIZE as f32;
 
-    if let Err(_) = target.fill_contiguous(
+    if target.fill_contiguous(
         &target.bounding_box(),
         (0..(target_width * target_height)).map(|mut idx| {
             if adaptive_scaling {
@@ -36,7 +36,7 @@ pub fn draw<T: DrawTarget<Color = Rgb888>>(
 
             Rgb888::new(color.red, color.green, color.blue)
         }),
-    ) {
+    ).is_err() {
         eprintln!("error drawing framebuffer");
     };
 }

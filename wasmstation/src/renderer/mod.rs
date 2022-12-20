@@ -1,20 +1,20 @@
-#[cfg(feature = "wgpu-renderer")]
-mod wgpu;
-
-#[cfg(feature = "wgpu-renderer")]
-pub use self::wgpu::WgpuRenderer;
-
 #[cfg(feature = "embedded")]
 mod embedded;
 
 #[cfg(feature = "embedded")]
-pub use {self::embedded::draw, embedded_graphics};
+pub use self::embedded::draw;
 
-#[cfg(feature = "embedded-renderer")]
-mod embedded_renderer;
+#[cfg(feature = "cpu-renderer")]
+mod cpu;
 
-#[cfg(feature = "embedded-renderer")]
-pub use self::embedded_renderer::EmbeddedRendererSimulator;
+#[cfg(feature = "cpu-renderer")]
+pub use self::cpu::CpuRenderer;
+
+#[cfg(feature = "gpu-renderer")]
+mod gpu;
+
+#[cfg(feature = "gpu-renderer")]
+pub use self::gpu::GpuRenderer;
 
 mod proxy;
 pub use proxy::ProxyRenderer;

@@ -25,7 +25,7 @@ use crate::{
 const VERTICES: &[[f32; 2]; 4] = &[[1.0, 1.0], [1.0, -1.0], [-1.0, -1.0], [-1.0, 1.0]];
 const INDICES: &[i16] = &[3, 2, 0, 1, 0, 2];
 
-struct WgpuRendererInternal {
+struct GpuRendererState {
     surface: Surface,
     device: Device,
     queue: Queue,
@@ -40,7 +40,7 @@ struct WgpuRendererInternal {
     bind_group: BindGroup,
 }
 
-impl WgpuRendererInternal {
+impl GpuRendererState {
     pub fn new_blocking(window: &Window) -> anyhow::Result<Self> {
         pollster::block_on(Self::new(window))
     }
@@ -377,12 +377,12 @@ impl WgpuRendererInternal {
     }
 }
 
-pub struct WgpuRenderer {
+pub struct GpuRenderer {
     pub display_scale: u32,
     pub title: String,
 }
 
-impl Default for WgpuRenderer {
+impl Default for GpuRenderer {
     fn default() -> Self {
         Self {
             display_scale: 3,
@@ -391,7 +391,7 @@ impl Default for WgpuRenderer {
     }
 }
 
-impl Renderer for WgpuRenderer {
+impl Renderer for GpuRenderer {
     fn present(self, mut backend: impl crate::Backend + 'static) {
         let event_loop = EventLoop::new();
         let window = {
@@ -416,8 +416,7 @@ impl Renderer for WgpuRenderer {
         let mut mouse_buttons: u8 = 0;
         let mut gamepad1: u8 = 0;
 
-        let mut renderer =
-            WgpuRendererInternal::new_blocking(&window).expect("initialize renderer");
+        let mut renderer = GpuRendererState::new_blocking(&window).expect("initialize renderer");
 
         event_loop.run(move |event, _, control_flow| match event {
             Event::WindowEvent { window_id, event } if window_id == window.id() => match event {

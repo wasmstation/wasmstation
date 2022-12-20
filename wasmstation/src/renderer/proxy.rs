@@ -2,23 +2,23 @@ use std::str::FromStr;
 
 use crate::Renderer;
 
-#[cfg(feature = "embedded-renderer")]
-use super::EmbeddedRendererSimulator;
-#[cfg(feature = "wgpu-renderer")]
-use super::WgpuRenderer;
+#[cfg(feature = "cpu-renderer")]
+use super::CpuRenderer;
+#[cfg(feature = "gpu-renderer")]
+use super::GpuRenderer;
 
 pub enum ProxyRenderer {
-    #[cfg(feature = "wgpu-renderer")]
-    Wgpu(WgpuRenderer),
-    #[cfg(feature = "embedded-renderer")]
-    Embedded(EmbeddedRendererSimulator),
+    #[cfg(feature = "gpu-renderer")]
+    Gpu(GpuRenderer),
+    #[cfg(feature = "cpu-renderer")]
+    Cpu(CpuRenderer),
 }
 
 const AVAILABLE_RENDERERS: &[&str] = &[
-    #[cfg(feature = "wgpu-renderer")]
-    "wgpu",
-    #[cfg(feature = "embedded-renderer")]
-    "embedded",
+    #[cfg(feature = "gpu-renderer")]
+    "gpu",
+    #[cfg(feature = "cpu-renderer")]
+    "cpu",
 ];
 
 impl ProxyRenderer {
@@ -28,19 +28,19 @@ impl ProxyRenderer {
 
     pub fn set_display_scale(&mut self, scale: u32) {
         match self {
-            #[cfg(feature = "wgpu-renderer")]
-            ProxyRenderer::Wgpu(r) => r.display_scale = scale,
-            #[cfg(feature = "embedded-renderer")]
-            ProxyRenderer::Embedded(r) => r.display_scale = scale,
+            #[cfg(feature = "gpu-renderer")]
+            ProxyRenderer::Gpu(r) => r.display_scale = scale,
+            #[cfg(feature = "cpu-renderer")]
+            ProxyRenderer::Cpu(r) => r.display_scale = scale,
         }
     }
 
     pub fn set_title(&mut self, title: impl AsRef<str>) {
         match self {
-            #[cfg(feature = "wgpu-renderer")]
-            ProxyRenderer::Wgpu(r) => r.title = title.as_ref().to_string(),
-            #[cfg(feature = "embedded-renderer")]
-            ProxyRenderer::Embedded(r) => r.title = title.as_ref().to_string(),
+            #[cfg(feature = "gpu-renderer")]
+            ProxyRenderer::Gpu(r) => r.title = title.as_ref().to_string(),
+            #[cfg(feature = "cpu-renderer")]
+            ProxyRenderer::Cpu(r) => r.title = title.as_ref().to_string(),
         }
     }
 }
@@ -56,10 +56,10 @@ impl FromStr for ProxyRenderer {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            #[cfg(feature = "wgpu-renderer")]
-            "wgpu" => Ok(ProxyRenderer::Wgpu(WgpuRenderer::default())),
-            #[cfg(feature = "embedded-renderer")]
-            "embedded" => Ok(ProxyRenderer::Embedded(EmbeddedRendererSimulator::default())),
+            #[cfg(feature = "gpu-renderer")]
+            "gpu" => Ok(ProxyRenderer::Gpu(GpuRenderer::default())),
+            #[cfg(feature = "cpu-renderer")]
+            "cpu" => Ok(ProxyRenderer::Cpu(CpuRenderer::default())),
             _ => Err("Unrecognized renderer".to_string()),
         }
     }
@@ -68,10 +68,10 @@ impl FromStr for ProxyRenderer {
 impl Renderer for ProxyRenderer {
     fn present(self, b: impl crate::Backend + 'static) {
         match self {
-            #[cfg(feature = "wgpu-renderer")]
-            Self::Wgpu(r) => r.present(b),
-            #[cfg(feature = "embedded-renderer")]
-            Self::Embedded(r) => r.present(b),
+            #[cfg(feature = "gpu-renderer")]
+            Self::Gpu(r) => r.present(b),
+            #[cfg(feature = "cpu-renderer")]
+            Self::Cpu(r) => r.present(b),
         }
     }
 }

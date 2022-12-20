@@ -3,7 +3,10 @@ use std::{
     time::{Duration, Instant},
 };
 
-use embedded_graphics::{pixelcolor::Rgb888, prelude::*};
+use embedded_graphics_core::{
+    pixelcolor::Rgb888,
+    prelude::{Point, Size},
+};
 use embedded_graphics_simulator::{
     sdl2::{Keycode, MouseButton},
     OutputSettings, SimulatorDisplay, SimulatorEvent, Window,
@@ -22,12 +25,12 @@ use super::embedded;
 
 const TARGET_MS_PER_FRAME: Duration = Duration::from_millis((1000.0 / 60.0) as u64);
 
-pub struct EmbeddedRendererSimulator {
+pub struct CpuRenderer {
     pub display_scale: u32,
     pub title: String,
 }
 
-impl Default for EmbeddedRendererSimulator {
+impl Default for CpuRenderer {
     fn default() -> Self {
         Self {
             display_scale: 3,
@@ -36,7 +39,7 @@ impl Default for EmbeddedRendererSimulator {
     }
 }
 
-impl Renderer for EmbeddedRendererSimulator {
+impl Renderer for CpuRenderer {
     fn present(self, mut backend: impl crate::Backend + 'static) {
         let mut display: SimulatorDisplay<Rgb888> =
             SimulatorDisplay::new(Size::new(SCREEN_SIZE, SCREEN_SIZE));
@@ -95,7 +98,7 @@ enum EmbeddedEvent {
 impl EmbeddedEvent {
     pub fn from_simulator_event(event: SimulatorEvent) -> (Option<Self>, bool) {
         match event {
-            SimulatorEvent::Quit => return (None, true),
+            SimulatorEvent::Quit => (None, true),
             SimulatorEvent::KeyDown { keycode, .. } => (
                 Some(EmbeddedEvent::Key {
                     down: true,
