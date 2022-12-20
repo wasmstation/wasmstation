@@ -4,11 +4,17 @@ mod wgpu;
 #[cfg(feature = "wgpu-renderer")]
 pub use self::wgpu::WgpuRenderer;
 
-#[cfg(feature = "sdl2-renderer")]
-mod sdl2;
+#[cfg(feature = "embedded")]
+mod embedded;
 
-#[cfg(feature = "sdl2-renderer")]
-pub use self::sdl2::Sdl2Renderer;
+#[cfg(feature = "embedded")]
+pub use {self::embedded::draw, embedded_graphics};
+
+#[cfg(feature = "embedded-renderer")]
+mod embedded_renderer;
+
+#[cfg(feature = "embedded-renderer")]
+pub use self::embedded_renderer::EmbeddedRendererSimulator;
 
 mod proxy;
 pub use proxy::ProxyRenderer;

@@ -249,7 +249,7 @@ fn rect(env: FunctionEnvMut<WasmerRuntimeEnv>, x: i32, y: i32, width: u32, heigh
 
 fn text(env: FunctionEnvMut<WasmerRuntimeEnv>, ptr: WasmPtr<u8>, x: i32, y: i32) {
     let view = env.data().memory.view(&env.as_store_ref());
-    let w4_string = ptr.read_until(&view, |b|*b==0).unwrap();
+    let w4_string = ptr.read_until(&view, |b| *b == 0).unwrap();
 
     let mut fb = get_framebuffer(&view);
     console::fb::text(&mut fb, &w4_string, x, y, get_draw_colors(&view))

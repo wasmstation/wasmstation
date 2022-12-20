@@ -2,23 +2,23 @@ use std::str::FromStr;
 
 use crate::Renderer;
 
-#[cfg(feature = "sdl2-renderer")]
-use super::Sdl2Renderer;
+#[cfg(feature = "embedded-renderer")]
+use super::EmbeddedRendererSimulator;
 #[cfg(feature = "wgpu-renderer")]
 use super::WgpuRenderer;
 
 pub enum ProxyRenderer {
     #[cfg(feature = "wgpu-renderer")]
     Wgpu(WgpuRenderer),
-    #[cfg(feature = "sdl2-renderer")]
-    Sdl2(Sdl2Renderer),
+    #[cfg(feature = "embedded-renderer")]
+    Embedded(EmbeddedRendererSimulator),
 }
 
 const AVAILABLE_RENDERERS: &[&str] = &[
     #[cfg(feature = "wgpu-renderer")]
     "wgpu",
-    #[cfg(feature = "sdl2-renderer")]
-    "sdl2",
+    #[cfg(feature = "embedded-renderer")]
+    "embedded",
 ];
 
 impl ProxyRenderer {
@@ -27,9 +27,20 @@ impl ProxyRenderer {
     }
 
     pub fn set_display_scale(&mut self, scale: u32) {
-        // AFAIK, the wgpu renderer is the only one with display_scale at the moment.
-        if let ProxyRenderer::Wgpu(renderer) = self {
-            renderer.display_scale = scale;
+        match self {
+            #[cfg(feature = "wgpu-renderer")]
+            ProxyRenderer::Wgpu(r) => r.display_scale = scale,
+            #[cfg(feature = "embedded-renderer")]
+            ProxyRenderer::Embedded(r) => r.display_scale = scale,
+        }
+    }
+
+    pub fn set_title(&mut self, title: impl AsRef<str>) {
+        match self {
+            #[cfg(feature = "wgpu-renderer")]
+            ProxyRenderer::Wgpu(r) => r.title = title.as_ref().to_string(),
+            #[cfg(feature = "embedded-renderer")]
+            ProxyRenderer::Embedded(r) => r.title = title.as_ref().to_string(),
         }
     }
 }
@@ -47,8 +58,8 @@ impl FromStr for ProxyRenderer {
         match s {
             #[cfg(feature = "wgpu-renderer")]
             "wgpu" => Ok(ProxyRenderer::Wgpu(WgpuRenderer::default())),
-            #[cfg(feature = "sdl2-renderer")]
-            "sdl2" => Ok(ProxyRenderer::Sdl2(Sdl2Renderer::default())),
+            #[cfg(feature = "embedded-renderer")]
+            "embedded" => Ok(ProxyRenderer::Embedded(EmbeddedRendererSimulator::default())),
             _ => Err("Unrecognized renderer".to_string()),
         }
     }
@@ -59,8 +70,8 @@ impl Renderer for ProxyRenderer {
         match self {
             #[cfg(feature = "wgpu-renderer")]
             Self::Wgpu(r) => r.present(b),
-            #[cfg(feature = "sdl2-renderer")]
-            Self::Sdl2(r) => r.present(b),
+            #[cfg(feature = "embedded-renderer")]
+            Self::Embedded(r) => r.present(b),
         }
     }
 }
