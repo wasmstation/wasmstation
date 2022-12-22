@@ -237,14 +237,27 @@ fn blit_sub(
 
 fn line(env: FunctionEnvMut<WasmerRuntimeEnv>, x1: i32, y1: i32, x2: i32, y2: i32) {
     let ctx = Context::from_env(&env);
-
     console::fb::line(&mut ctx.fb(), ctx.draw_colors(), x1, y1, x2, y2);
 }
 
-fn hline(env: FunctionEnvMut<WasmerRuntimeEnv>, x: i32, y: i32, len: u32) {}
-fn vline(env: FunctionEnvMut<WasmerRuntimeEnv>, x: i32, y: i32, len: u32) {}
-fn oval(env: FunctionEnvMut<WasmerRuntimeEnv>, x: i32, y: i32, width: u32, height: u32) {}
-fn rect(env: FunctionEnvMut<WasmerRuntimeEnv>, x: i32, y: i32, width: u32, height: u32) {}
+fn hline(env: FunctionEnvMut<WasmerRuntimeEnv>, x: i32, y: i32, len: u32) {
+    let ctx = Context::from_env(&env);
+    console::fb::hline(&mut ctx.fb(), ctx.draw_colors(), x, y, len);
+}
+
+fn vline(env: FunctionEnvMut<WasmerRuntimeEnv>, x: i32, y: i32, len: u32) {
+    let ctx = Context::from_env(&env);
+    console::fb::vline(&mut ctx.fb(), ctx.draw_colors(), x, y, len);
+}
+
+fn oval(env: FunctionEnvMut<WasmerRuntimeEnv>, x: i32, y: i32, width: u32, height: u32) {
+    let ctx = Context::from_env(&env);
+    console::fb::oval(&mut ctx.fb(), ctx.draw_colors(), x, y, width, height);
+}
+fn rect(env: FunctionEnvMut<WasmerRuntimeEnv>, x: i32, y: i32, width: u32, height: u32) {
+    let ctx = Context::from_env(&env);
+    console::fb::rect(&mut ctx.fb(), ctx.draw_colors(), x, y, width, height);
+}
 
 fn text(env: FunctionEnvMut<WasmerRuntimeEnv>, ptr: WasmPtr<u8>, x: i32, y: i32) {
     let ctx = Context::from_env(&env);

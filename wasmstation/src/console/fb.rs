@@ -615,8 +615,53 @@ pub(crate) fn line<T: Source<u8> + Sink<u8>>(
     }
 }
 
+pub(crate) fn hline<T: Source<u8> + Sink<u8>>(
+    fb: &mut T,
+    draw_colors: u16,
+    x: i32,
+    y: i32,
+    len: u32
+) {
+    // TODO: create performant version of hline
+    line(fb, draw_colors, x, y, x+(len as i32)-1, y);
+}
 
-pub fn text<T: Source<u8>+Sink<u8>>(fb: &mut T, text: &[u8], x: i32, y: i32, draw_colors: u16) {
+pub(crate) fn vline<T: Source<u8> + Sink<u8>>(
+    fb: &mut T,
+    draw_colors: u16,
+    x: i32,
+    y: i32,
+    len: u32
+) {
+    // TODO: create performant version of hline
+    line(fb, draw_colors, x, y, x, y+(len as i32)-1);
+}
+
+pub(crate) fn rect<T: Source<u8> + Sink<u8>>(
+    fb: &mut T,
+    draw_colors: u16,
+    x: i32,
+    y: i32,
+    width: u32,
+    height: u32
+){
+    hline(fb, draw_colors, x, y, width);
+    hline(fb, draw_colors, x, y+(height as i32)-1, width);
+    vline(fb, draw_colors, x, y, height);
+    vline(fb, draw_colors, x+(width as i32)-1, y, height);
+}
+
+pub(crate) fn oval<T: Sink<u8>>(
+    fb: &mut T,
+    draw_colors: u16,
+    x: i32,
+    y: i32,
+    width: u32,
+    height: u32
+){
+}
+
+pub fn text<T: Source<u8> + Sink<u8>>(fb: &mut T, text: &[u8], x: i32, y: i32, draw_colors: u16) {
     let (mut tx, mut ty) = (x, y);
 
     for c in text {
