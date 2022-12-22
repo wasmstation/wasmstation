@@ -9,8 +9,13 @@ use winit::{
     dpi::{LogicalSize, PhysicalPosition, PhysicalSize},
     event::{ElementState, Event, MouseButton, VirtualKeyCode, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
+    window::{Window, WindowBuilder},
+};
+
+#[cfg(target_os="linux")]
+use winit::{
     platform::unix::WindowBuilderExtUnix,
-    window::{Theme, Window, WindowBuilder},
+    window::Theme
 };
 
 use crate::{
@@ -395,14 +400,17 @@ impl Renderer for GpuRenderer {
     fn present(self, mut backend: impl crate::Backend + 'static) {
         let event_loop = EventLoop::new();
         let window = {
-            WindowBuilder::new()
+            let builder = WindowBuilder::new()
                 .with_title(self.title)
                 .with_inner_size(LogicalSize::new(
                     SCREEN_SIZE * self.display_scale,
                     SCREEN_SIZE * self.display_scale,
                 ))
-                .with_min_inner_size(LogicalSize::new(SCREEN_SIZE, SCREEN_SIZE))
-                .with_wayland_csd_theme(Theme::Dark)
+                .with_min_inner_size(LogicalSize::new(SCREEN_SIZE, SCREEN_SIZE));
+                #[cfg(target_os="linux")]
+            let builder = builder
+                .with_wayland_csd_theme(Theme::Dark);
+            builder
                 .build(&event_loop)
                 .unwrap()
         };
