@@ -5,7 +5,7 @@ use wasmer::{
 
 use crate::{
     console, utils,
-    wasm4::{self, DRAW_COLORS_ADDR, FRAMEBUFFER_ADDR, FRAMEBUFFER_SIZE},
+    wasm4::{self, DRAW_COLORS_ADDR, FRAMEBUFFER_ADDR, FRAMEBUFFER_SIZE, GAMEPAD1_ADDR, GAMEPAD2_ADDR, GAMEPAD4_ADDR, GAMEPAD3_ADDR},
     Backend, Sink, Source,
 };
 
@@ -64,9 +64,11 @@ impl Backend for WasmerBackend {
         let view = self.fn_env.as_ref(&self.store).memory.view(&self.store);
 
         // clear the framebuffer (important)
-        WasmPtr::<[u8; wasm4::FRAMEBUFFER_SIZE]>::new(wasm4::FRAMEBUFFER_ADDR as u32)
-            .write(&view, utils::default_framebuffer())
-            .expect("clear framebuffer");
+        if 0 == wasm4::SYSTEM_PRESERVE_FRAMEBUFFER & view.read_u8(wasm4::SYSTEM_FLAGS_ADDR as u64).unwrap() {
+            let slice = WasmPtr::<u8>::new(wasm4::FRAMEBUFFER_ADDR as u32)
+                .slice(&view, FRAMEBUFFER_SIZE as u32).unwrap();
+            console::fb::clear(&mut WasmSliceSinkSource { slice });
+        }
 
         if let Ok(update) = self.instance.exports.get_function("update") {
             let typed: TypedFunction<(), ()> = update
@@ -94,9 +96,21 @@ impl Backend for WasmerBackend {
             .expect("read to palette");
     }
 
-    fn set_gamepad(gamepad: u32) {}
+    fn read_system_flags(&self) -> u8 {
+        let view = self.fn_env.as_ref(&self.store).memory.view(&self.store);
+        view.read_u8(wasm4::SYSTEM_FLAGS_ADDR as u64).unwrap()
+    }
 
-    fn set_mouse(x: i16, y: i16, buttons: u8) {}
+    fn set_gamepad(&mut self, mut gamepad: u32) {
+        let view = self.fn_env.as_ref(&self.store).memory.view(&self.store);
+        let addrs = [GAMEPAD1_ADDR, GAMEPAD2_ADDR, GAMEPAD3_ADDR, GAMEPAD4_ADDR];
+        for addr in addrs {
+            WasmPtr::<u8>::new(addr as u32).write(&view, (gamepad & 0xff) as u8);
+            gamepad = gamepad >> 8;
+        }
+    }
+
+    fn set_mouse(&mut self, x: i16, y: i16, buttons: u8) {}
 }
 
 struct WasmerRuntimeEnv {
@@ -182,6 +196,12 @@ where
             .write(item)
             .expect("writing to wasm memory failed");
     }
+
+    fn fill(&mut self, item: T) {
+        for n in 0..FRAMEBUFFER_SIZE as u64 {
+            self.slice.write(n, item).unwrap();
+        }
+    }  
 }
 
 fn trace_utf8(env: FunctionEnvMut<WasmerRuntimeEnv>, ptr: WasmPtr<u8>, len: i32) {}
