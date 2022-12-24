@@ -17,6 +17,10 @@ where
     fn set_item_at(&mut self, offset: usize, item: T) {
         self[offset] = item
     }
+
+    fn fill(&mut self, item: T) {
+        <[T]>::fill(self, item)
+    }
 }
 
 impl<T> Source<T> for Vec<T>
@@ -53,6 +57,10 @@ impl PixelFormat {
     }
 }
 
+const DRAW_COLOR_1: u8 = 0;
+const DRAW_COLOR_2: u8 = 1;
+const DRAW_COLOR_3: u8 = 2;
+const DRAW_COLOR_4: u8 = 3;
 
 // charset
 const CHARSET_WIDTH: u32 = 128;
@@ -139,6 +147,9 @@ fn calculate_target_range(tgt_coord: i32, tgt_extent: i32, clip_range: Range<i32
     }
 }
 
+pub(crate) fn clear<T:Sink<u8>>(fb: &mut T) {
+    fb.fill(0u8);
+}
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn blit_sub<S, T>(
@@ -564,10 +575,10 @@ fn test_remap_draw_colors() {
 pub(crate) fn line<T: Source<u8> + Sink<u8>>(
     fb: &mut T,
     draw_colors: u16,
-    mut x1: i32,
-    mut y1: i32,
-    mut x2: i32,
-    mut y2: i32,
+    x1: i32,
+    y1: i32,
+    x2: i32,
+    y2: i32,
 ) {
     let dc0: u8 = (draw_colors & 0xf) as u8;
     if dc0 == 0 {
@@ -575,7 +586,18 @@ pub(crate) fn line<T: Source<u8> + Sink<u8>>(
     }
 
     let stroke_color: u8 = (dc0 - 1) & 0x3;
+    line_stroke(fb, stroke_color, x1, y1, x2, y2);
+}
 
+
+fn line_stroke<T: Source<u8> + Sink<u8>>(
+    fb: &mut T,
+    stroke_color: u8,
+    mut x1: i32,
+    mut y1: i32,
+    mut x2: i32,
+    mut y2: i32,
+) {
     if y1 > y2 {
         let swap = x1;
         x1 = x2;
@@ -615,8 +637,91 @@ pub(crate) fn line<T: Source<u8> + Sink<u8>>(
     }
 }
 
+pub(crate) fn hline<T: Source<u8> + Sink<u8>>(
+    fb: &mut T,
+    draw_colors: u16,
+    x: i32,
+    y: i32,
+    len: u32
+) {
+    // TODO: create performant version of hline
+    let (stroke, opaque) = remap_draw_color(DRAW_COLOR_1, draw_colors);
+    if opaque {
+        hline_stroke(fb, stroke, x, y, len);
+    }
+}
 
-pub fn text<T: Source<u8>+Sink<u8>>(fb: &mut T, text: &[u8], x: i32, y: i32, draw_colors: u16) {
+fn hline_stroke<T: Source<u8> + Sink<u8>>(
+    fb: &mut T,
+    stroke: u8,
+    x: i32,
+    y: i32,
+    len: u32
+) {
+    // TODO: create performant version of hline
+    line_stroke(fb, stroke, x, y, x+(len as i32)-1, y);
+}
+
+pub(crate) fn vline<T: Source<u8> + Sink<u8>>(
+    fb: &mut T,
+    draw_colors: u16,
+    x: i32,
+    y: i32,
+    len: u32
+) {
+    let (stroke, opaque) = remap_draw_color(DRAW_COLOR_1, draw_colors);
+    if opaque {
+        vline_stroke(fb, stroke, x, y, len);
+    }
+}
+
+fn vline_stroke<T: Source<u8> + Sink<u8>>(
+    fb: &mut T,
+    stroke: u8,
+    x: i32,
+    y: i32,
+    len: u32
+) {
+    // TODO: create performant version of hline
+    line_stroke(fb, stroke, x, y, x, y+(len as i32)-1);
+}
+
+pub(crate) fn rect<T: Source<u8> + Sink<u8>>(
+    fb: &mut T,
+    draw_colors: u16,
+    x: i32,
+    y: i32,
+    width: u32,
+    height: u32
+){
+    let (fill_stroke, fill_opaque) = remap_draw_color(DRAW_COLOR_1, draw_colors);
+    if fill_opaque {
+        let fx = x;
+        let flen = width;
+        for fy in y..y+(height as i32){
+            hline_stroke(fb, fill_stroke, fx, fy, flen)
+        }
+    }
+    let (line_stroke, line_opaque) = remap_draw_color(DRAW_COLOR_2, draw_colors);
+    if line_opaque {
+        hline_stroke(fb, line_stroke, x, y, width);
+        hline_stroke(fb, line_stroke, x, y+(height as i32)-1, width);
+        vline_stroke(fb, line_stroke, x, y, height);
+        vline_stroke(fb, line_stroke, x+(width as i32)-1, y, height);
+    }
+}
+
+pub(crate) fn oval<T: Sink<u8>>(
+    fb: &mut T,
+    draw_colors: u16,
+    x: i32,
+    y: i32,
+    width: u32,
+    height: u32
+){
+}
+
+pub fn text<T: Source<u8> + Sink<u8>>(fb: &mut T, text: &[u8], x: i32, y: i32, draw_colors: u16) {
     let (mut tx, mut ty) = (x, y);
 
     for c in text {
