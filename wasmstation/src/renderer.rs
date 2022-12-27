@@ -68,7 +68,7 @@ pub fn launch(mut backend: impl Backend, title: &str, display_scale: u32) -> any
     let mut mouse_buttons: u8 = 0;
     let mut gamepads: u32 = 0;
 
-    let mut framebuffer: [u8; FRAMEBUFFER_SIZE] = utils::default_framebuffer();
+    let mut framebuffer: [u8; FRAMEBUFFER_SIZE] = utils::empty_framebuffer();
     let mut palette: [u8; 16] = utils::default_palette();
 
     'running: loop {

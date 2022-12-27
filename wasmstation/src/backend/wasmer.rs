@@ -147,7 +147,7 @@ impl WasmerRuntimeEnv {
         )?;
         mem_view.write(
             wasm4::FRAMEBUFFER_ADDR as u64,
-            &utils::default_framebuffer(),
+            &utils::empty_framebuffer(),
         )?;
 
         Ok(Self { memory })
