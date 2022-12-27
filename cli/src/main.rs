@@ -1,7 +1,7 @@
 use std::{fs, path::PathBuf};
 
 use argh::FromArgs;
-use wasmstation::{backend::WasmerBackend, renderer::ProxyRenderer};
+use wasmstation::backend::WasmerBackend;
 
 #[derive(FromArgs)]
 #[argh(description = "Run wasm4 compatible games.")]
@@ -14,22 +14,29 @@ struct Args {
         default = "3",
         description = "scale factor for the window"
     )]
-    display_scale: u8,
-    #[argh(
-        option,
-        short = 'r',
-        description = "which renderer to use",
-        default = "ProxyRenderer::default()"
-    )]
-    renderer: ProxyRenderer,
+    display_scale: u32,
 }
 
 fn main() {
     let args: Args = argh::from_env();
     let wasm_bytes = fs::read(&args.path).expect("failed to read game");
 
-    let mut renderer = args.renderer;
-    renderer.set_display_scale(args.display_scale as u32);
+    let title = args
+        .path
+        .file_name()
+        .map(|t| t.to_str().unwrap_or("wasmstation"))
+        .unwrap_or("wasmstation")
+        .split('.')
+        .next()
+        .unwrap_or("wasmstation")
+        .replace("-", " ");
 
-    wasmstation::launch(WasmerBackend::new(&wasm_bytes).unwrap(), renderer);
+    pretty_env_logger::init();
+
+    wasmstation::launch(
+        WasmerBackend::new(&wasm_bytes).unwrap(),
+        &title,
+        args.display_scale,
+    )
+    .unwrap();
 }
