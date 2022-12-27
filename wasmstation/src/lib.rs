@@ -9,7 +9,15 @@ pub mod backend;
 mod console;
 pub mod renderer;
 
-pub use renderer::launch;
+/// alias for Renderer::present(Backend)
+pub fn launch<R: Renderer, B: Backend + 'static>(backend: B, renderer: R) {
+    R::present(renderer, backend);
+}
+
+/// Common trait for game renderers.
+pub trait Renderer {
+    fn present(self, b: impl Backend + 'static);
+}
 
 /// Common trait for webassembly backends.
 pub trait Backend {
