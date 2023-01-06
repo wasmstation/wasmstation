@@ -620,12 +620,12 @@ pub(crate) fn line<T: Source<u8> + Sink<u8>>(
     }
 
     let stroke_color: u8 = (dc0 - 1) & 0x3;
-    line_stroke(fb, stroke_color, x1, y1, x2, y2);
+    line_stroke(&mut Wasm4Screen { fb }, stroke_color, x1, y1, x2, y2);
 }
 
 
-fn line_stroke<T: Source<u8> + Sink<u8>>(
-    fb: &mut T,
+fn line_stroke<T: Screen>(
+    screen: &mut T,
     stroke_color: u8,
     mut x1: i32,
     mut y1: i32,
@@ -651,7 +651,7 @@ fn line_stroke<T: Source<u8> + Sink<u8>>(
     // we won't have to ever go through the entirety of FRAMEBUFFER_SIZE,
     // I just added this so the loop will stop incase something goes really wrong.
     for _ in 0..crate::wasm4::FRAMEBUFFER_SIZE {
-        set_pixel_unclipped(fb, x1, y1, stroke_color);
+        set_pixel_unclipped_impl(screen, x1, y1, stroke_color);
 
         if x1 == x2 && y1 == y2 {
             break;
@@ -681,19 +681,20 @@ pub(crate) fn hline<T: Source<u8> + Sink<u8>>(
     // TODO: create performant version of hline
     let (stroke, opaque) = remap_draw_color(DRAW_COLOR_1, draw_colors);
     if opaque {
-        hline_stroke(fb, stroke, x, y, len);
+        let mut screen = Wasm4Screen { fb };
+        hline_stroke(&mut screen, stroke, x, y, len);
     }
 }
 
-fn hline_stroke<T: Source<u8> + Sink<u8>>(
-    fb: &mut T,
+fn hline_stroke<T: Screen>(
+    screen: &mut T,
     stroke: u8,
     x: i32,
     y: i32,
     len: u32
 ) {
     // TODO: create performant version of hline
-    line_stroke(fb, stroke, x, y, x+(len as i32)-1, y);
+    line_stroke(screen, stroke, x, y, x+(len as i32)-1, y);
 }
 
 pub(crate) fn vline<T: Source<u8> + Sink<u8>>(
@@ -705,19 +706,19 @@ pub(crate) fn vline<T: Source<u8> + Sink<u8>>(
 ) {
     let (stroke, opaque) = remap_draw_color(DRAW_COLOR_1, draw_colors);
     if opaque {
-        vline_stroke(fb, stroke, x, y, len);
+        vline_stroke(&mut Wasm4Screen { fb }, stroke, x, y, len);
     }
 }
 
-fn vline_stroke<T: Source<u8> + Sink<u8>>(
-    fb: &mut T,
+fn vline_stroke<T: Screen>(
+    screen: &mut T,
     stroke: u8,
     x: i32,
     y: i32,
     len: u32
 ) {
     // TODO: create performant version of hline
-    line_stroke(fb, stroke, x, y, x, y+(len as i32)-1);
+    line_stroke(screen, stroke, x, y, x, y+(len as i32)-1);
 }
 
 pub(crate) fn rect<T: Source<u8> + Sink<u8>>(
@@ -728,20 +729,21 @@ pub(crate) fn rect<T: Source<u8> + Sink<u8>>(
     width: u32,
     height: u32
 ){
+    let mut screen = Wasm4Screen { fb };
     let (fill_stroke, fill_opaque) = remap_draw_color(DRAW_COLOR_1, draw_colors);
     if fill_opaque {
         let fx = x;
         let flen = width;
         for fy in y..y+(height as i32){
-            hline_stroke(fb, fill_stroke, fx, fy, flen)
+            hline_stroke(&mut screen, fill_stroke, fx, fy, flen)
         }
     }
     let (line_stroke, line_opaque) = remap_draw_color(DRAW_COLOR_2, draw_colors);
     if line_opaque {
-        hline_stroke(fb, line_stroke, x, y, width);
-        hline_stroke(fb, line_stroke, x, y+(height as i32)-1, width);
-        vline_stroke(fb, line_stroke, x, y, height);
-        vline_stroke(fb, line_stroke, x+(width as i32)-1, y, height);
+        hline_stroke(&mut screen, line_stroke, x, y, width);
+        hline_stroke(&mut screen, line_stroke, x, y+(height as i32)-1, width);
+        vline_stroke(&mut screen, line_stroke, x, y, height);
+        vline_stroke(&mut screen, line_stroke, x+(width as i32)-1, y, height);
     }
 }
 
