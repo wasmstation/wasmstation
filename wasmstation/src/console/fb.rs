@@ -86,17 +86,51 @@ fn get_sprite_pixel_draw_color<T: Source<u8>>(sprite: &T, fmt: PixelFormat, x: i
     }
 }
 
+trait Screen {
+    type Framebuffer: Source<u8> + Sink<u8>;
+    const WIDTH: u32;
+    const HEIGHT: u32;
+    fn fb(&mut self) -> &mut Self::Framebuffer;
+}
+
+struct Wasm4Screen<'a, B: Sink<u8> + Source<u8>> {
+    fb: &'a mut B
+}
+
+impl <'a, B: Sink<u8> + Source<u8>> Screen for Wasm4Screen<'a, B> {
+    type Framebuffer = B;
+    const WIDTH: u32 = SCREEN_SIZE;
+    const HEIGHT: u32 = SCREEN_SIZE;
+
+    fn fb(&mut self) -> &mut Self::Framebuffer {
+        self.fb
+    }
+}
+
+
+
 fn set_pixel<T: Source<u8> + Sink<u8>>(fb: &mut T, x: i32, y: i32, color: u8) {
-    let idx: usize = (SCREEN_SIZE as usize * y as usize + x as usize) >> 2;
+    let mut screen = Wasm4Screen { fb };
+    set_pixel_impl(&mut screen, x, y, color)
+}
+
+fn set_pixel_impl<S: Screen>(s: &mut S, x: i32, y: i32, color: u8) {
+    let idx: usize = (S::WIDTH as usize * y as usize + x as usize) >> 2;
     let shift = (x & 0x3) << 1;
     let mask = 0x3 << shift;
 
-    fb.set_item_at(idx, (color << shift) | (fb.item_at(idx) & !mask));
+    let fb_byte = s.fb().item_at(idx);
+    s.fb().set_item_at(idx, (color << shift) | (fb_byte & !mask));
 }
 
 fn set_pixel_unclipped<T: Source<u8> + Sink<u8>>(fb: &mut T, x: i32, y: i32, color: u8) {
-    if x >= 0 && x < SCREEN_SIZE as i32 && y >= 0 && y < SCREEN_SIZE as i32 {
-        set_pixel(fb, x, y, color);
+    let mut screen = Wasm4Screen { fb };
+    set_pixel_unclipped_impl(&mut screen, x, y, color)
+}
+
+fn set_pixel_unclipped_impl<S: Screen>(s: &mut S, x: i32, y: i32, color: u8) {
+    if x >= 0 && x < S::WIDTH as i32 && y >= 0 && y < S::HEIGHT as i32 {
+        set_pixel_impl(s, x, y, color);
     }
 }
 
