@@ -1,3 +1,5 @@
+use std::cell::Cell;
+
 use wasmer::{
     imports, AsStoreRef, Engine, Function, FunctionEnv, FunctionEnvMut, Instance, Memory,
     MemoryType, MemoryView, Module, Store, TypedFunction, ValueType, WasmPtr, WasmSlice,
@@ -31,7 +33,8 @@ impl WasmerBackend {
         // see https://wasm4.org/docs/reference/functions
         let imports = imports! {
             "env" => {
-                "memory" => fn_env.as_ref(&store).memory.clone(), "traceUtf8" => Function::new_typed_with_env(&mut store, &fn_env, trace_utf8),
+                "memory" => fn_env.as_mut(&mut store).memory.clone(),
+                "traceUtf8" => Function::new_typed_with_env(&mut store, &fn_env, trace_utf8),
                 "traceUtf16" => Function::new_typed_with_env(&mut store, &fn_env, trace_utf16),
                 "blit" => Function::new_typed_with_env(&mut store, &fn_env, blit),
                 "blitSub" => Function::new_typed_with_env(&mut store, &fn_env, blit_sub),
@@ -127,10 +130,20 @@ impl Backend for WasmerBackend {
         )
         .expect("write to MOUSE_BUTTONS_ADDR");
     }
+
+    fn write_save(&mut self) -> Option<[u8; 1024]> {
+        self.fn_env.as_mut(&mut self.store).write_save()
+    }
+
+    fn set_save(&mut self, data: [u8; 1024]) {
+        self.fn_env.as_mut(&mut self.store).save_cache.set(data);
+    }
 }
 
 struct WasmerRuntimeEnv {
     memory: Memory,
+    pub save_cache: Cell<[u8; 1024]>,
+    pub needs_write: Cell<bool>,
 }
 
 impl WasmerRuntimeEnv {
@@ -150,7 +163,20 @@ impl WasmerRuntimeEnv {
             &utils::default_framebuffer(),
         )?;
 
-        Ok(Self { memory })
+        Ok(Self {
+            memory,
+            save_cache: Cell::new([0; 1024]),
+            needs_write: Cell::new(false),
+        })
+    }
+
+    pub fn write_save(&self) -> Option<[u8; 1024]> {
+        if self.needs_write.get() {
+            self.needs_write.set(false);
+            return Some(self.save_cache.get());
+        } else {
+            return None;
+        }
     }
 }
 
@@ -316,8 +342,34 @@ fn text_utf16(
     y: i32,
 ) {
 }
-fn diskr(env: FunctionEnvMut<WasmerRuntimeEnv>, dest: WasmPtr<u8>, size: u32) {}
-fn diskw(env: FunctionEnvMut<WasmerRuntimeEnv>, src: WasmPtr<u8>, size: u32) {}
+
+fn diskr(env: FunctionEnvMut<WasmerRuntimeEnv>, dest: WasmPtr<u8>, size: u32) -> u32 {
+    let ctx = Context::from_env(&env);
+    let bytes_read = u32::min(size, 1024);
+
+    let mut src = env.data().save_cache.get().to_vec();
+    src.resize(bytes_read as usize, 0);
+    ctx.view()
+        .write(dest.offset() as u64, &src)
+        .expect("write save bytes to memory");
+
+    return bytes_read;
+}
+
+fn diskw(env: FunctionEnvMut<WasmerRuntimeEnv>, src: WasmPtr<u8>, size: u32) -> u32 {
+    let ctx = Context::from_env(&env);
+    let bytes_written = u32::min(size, 1024);
+
+    let mut buf: Vec<u8> = Vec::new();
+    let src = ctx.view().read(src.offset() as u64, &mut buf);
+    buf.resize(1024, 0);
+
+    env.data().needs_write.set(true);
+    env.data().save_cache.set(buf.try_into().unwrap());
+
+    return bytes_written;
+}
+
 fn tone(
     env: FunctionEnvMut<WasmerRuntimeEnv>,
     frequency: u32,

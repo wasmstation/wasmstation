@@ -32,6 +32,10 @@ pub trait Backend {
     /// [MOUSE_BUTTONS](https://wasm4.org/docs/reference/memory#mouse_buttons)
     /// registers, where the cart will read mouse input from.
     fn set_mouse(&mut self, x: i16, y: i16, buttons: u8);
+    /// Tells the renderer to save the save cache to disk.
+    fn write_save(&mut self) -> Option<[u8; 1024]>;
+    /// Set the backend's save cache.
+    fn set_save(&mut self, data: [u8; 1024]);
 }
 
 /// Common trait for reading from game memory. A `Source<T>` reads from

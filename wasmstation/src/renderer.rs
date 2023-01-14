@@ -1,6 +1,8 @@
 use std::{
+    fs::{self, File},
+    path::PathBuf,
     thread,
-    time::{Duration, Instant},
+    time::{Duration, Instant}, io::Write,
 };
 
 use anyhow::anyhow;
@@ -32,14 +34,35 @@ const TARGET_MS_PER_FRAME: Duration = Duration::from_millis((1000.0 / TARGET_FPS
 const SCREEN_LENGTH: usize = (SCREEN_SIZE * SCREEN_SIZE) as usize;
 const TEXTURE_LENGTH: usize = SCREEN_LENGTH * 3;
 
-pub fn launch(mut backend: impl Backend, title: &str, display_scale: u32) -> anyhow::Result<()> {
-    let sdl_context = sdl2::init().map_err(|s| anyhow!("{s}"))?;
+pub fn launch(mut backend: impl Backend, path: &PathBuf, display_scale: u32) -> anyhow::Result<()> {
+    let mut save_file = path.clone();
+    save_file.set_extension("disk");
 
+    if let Ok(mut data) = fs::read(&save_file) {
+        println!("reading");
+        data.resize(1024, 0);
+        backend.set_save(data.try_into().unwrap());
+    }
+
+    let title = format!(
+        "wasmstation - {}",
+        path.file_name()
+            .expect("path must be a file")
+            .to_str()
+            .expect("map path to utf8")
+            .split('.')
+            .next()
+            .unwrap_or("wasmstation")
+            .replace("-", " ")
+            .replace("_", " ")
+    );
+
+    let sdl_context = sdl2::init().map_err(|s| anyhow!("{s}"))?;
     let mut window = sdl_context
         .video()
         .map_err(|x| anyhow!("{x}"))?
         .window(
-            title,
+            &title,
             SCREEN_SIZE * display_scale,
             SCREEN_SIZE * display_scale,
         )
@@ -91,6 +114,7 @@ pub fn launch(mut backend: impl Backend, title: &str, display_scale: u32) -> any
 
         // update state
         backend.call_update();
+        write_save(backend.write_save(), &save_file)?;
 
         // update screen
         backend.read_screen(&mut framebuffer, &mut palette);
@@ -264,4 +288,16 @@ fn handle_input(
     }
 
     false
+}
+
+fn read_save() {}
+
+fn write_save(backend: Option<[u8; 1024]>, path: &PathBuf) -> anyhow::Result<()> {
+    if let Some(backend) = backend {
+        let mut file = File::create(path)?; // create file if doesn't exist
+        file.write_all(&backend)?;
+        file.sync_all()?;
+    }
+
+    Ok(())
 }
