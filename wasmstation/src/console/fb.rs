@@ -1,6 +1,6 @@
 // WASM-4 Framebuffer functions
 
-use std::{ops::Range, mem::size_of};
+use std::{ops::Range, mem::size_of, fmt::Write};
 
 use num_traits::{PrimInt, Unsigned};
 
@@ -23,6 +23,19 @@ where
     }
 }
 
+impl<const N: usize, T> Sink<T> for [T; N]
+where
+    T: Copy,
+{
+    fn set_item_at(&mut self, offset: usize, item: T) {
+        self[offset] = item
+    }
+
+    fn fill(&mut self, item: T) {
+        <[T]>::fill(self, item)
+    }
+}
+
 impl<T> Source<T> for Vec<T>
 where
     T: Copy,
@@ -32,7 +45,7 @@ where
     }
 }
 
-impl<T> Source<T> for &[T]
+impl<const N: usize, T> Source<T> for [T; N]
 where
     T: Copy,
 {
@@ -90,7 +103,8 @@ trait Screen {
     type Framebuffer: Source<u8> + Sink<u8>;
     const WIDTH: u32;
     const HEIGHT: u32;
-    fn fb(&mut self) -> &mut Self::Framebuffer;
+    fn fb(&self) -> &Self::Framebuffer;
+    fn fb_mut(&mut self) -> &mut Self::Framebuffer;
 }
 
 struct Wasm4Screen<'a, B: Sink<u8> + Source<u8>> {
@@ -102,8 +116,64 @@ impl <'a, B: Sink<u8> + Source<u8>> Screen for Wasm4Screen<'a, B> {
     const WIDTH: u32 = SCREEN_SIZE;
     const HEIGHT: u32 = SCREEN_SIZE;
 
-    fn fb(&mut self) -> &mut Self::Framebuffer {
+    fn fb(&self) -> &Self::Framebuffer {
         self.fb
+    }
+
+    fn fb_mut(&mut self) -> &mut Self::Framebuffer {
+        self.fb
+    }
+}
+
+#[derive(PartialEq)]
+struct ArrayScreen<const N: usize, const W: u32> {  
+    fb: [u8; N]
+}
+
+impl <const N: usize, const W: u32> std::fmt::Debug for ArrayScreen<N,W> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("ArrayScreen(WIDTH:{},HEIGHT:{}). framebuffer:\n", Self::WIDTH, Self::HEIGHT))?;
+        for n in 0..Self::HEIGHT as usize{
+            let start = n   *Self::WIDTH as usize/4;
+            let end =  (n+1)*Self::WIDTH as usize/4;
+            let line = as_fb_line(&self.fb()[start..end]);
+            f.write_str(&line)?;
+            f.write_char('\n')?;
+        }
+        Ok(())
+    }
+}
+
+impl <const N: usize, const W: u32> ArrayScreen<N,W> {
+    fn new() -> ArrayScreen<N,W> {
+        ArrayScreen::<N,W> {
+            fb: [0u8; N]
+        }
+    }
+
+    fn new_with_fb_lines(fb_lines: &[Vec<u8>]) -> ArrayScreen<N,W>{
+        let mut s = Self::new();
+        for n in 0..fb_lines.len() {
+            let line = &fb_lines[n];
+            let start = n*Self::WIDTH as usize/4;
+            let end = (n+1)*Self::WIDTH as usize/4;
+            s.fb_mut()[start..end].copy_from_slice(line.as_slice());
+        };
+        s
+    }
+}
+
+impl <const N: usize, const W: u32> Screen for ArrayScreen<N, W> {
+    type Framebuffer = [u8; N];
+    const WIDTH: u32 = W;
+    const HEIGHT: u32 = N as u32 * 4 / W;
+
+    fn fb(&self) -> &Self::Framebuffer {
+        &self.fb
+    }
+
+    fn fb_mut(&mut self) -> &mut Self::Framebuffer {
+        &mut self.fb
     }
 }
 
@@ -120,7 +190,7 @@ fn set_pixel_impl<S: Screen>(s: &mut S, x: i32, y: i32, color: u8) {
     let mask = 0x3 << shift;
 
     let fb_byte = s.fb().item_at(idx);
-    s.fb().set_item_at(idx, (color << shift) | (fb_byte & !mask));
+    s.fb_mut().set_item_at(idx, (color << shift) | (fb_byte & !mask));
 }
 
 fn set_pixel_unclipped<T: Source<u8> + Sink<u8>>(fb: &mut T, x: i32, y: i32, color: u8) {
@@ -747,7 +817,7 @@ pub(crate) fn rect<T: Source<u8> + Sink<u8>>(
     }
 }
 
-pub(crate) fn oval<T: Sink<u8>>(
+pub(crate) fn oval<T: Sink<u8> + Source<u8>>(
     fb: &mut T,
     draw_colors: u16,
     x: i32,
@@ -755,6 +825,124 @@ pub(crate) fn oval<T: Sink<u8>>(
     width: u32,
     height: u32
 ){
+    let mut screen = Wasm4Screen { fb };
+    oval_impl(&mut screen, draw_colors, x, y, width, height)
+}
+
+/// Draw axis parallel ellipse centered around `x` and `y` with given `width` and
+/// `height`. The algorithm aligns with what is implemented in W4's framebuffer.c
+fn oval_impl<T: Screen>(
+        screen: &mut T,
+        draw_colors: u16,
+        x: i32,
+        y: i32,
+        width: u32,
+        height: u32
+    ){
+    
+    let width = width as i32;
+    let height = height as i32;
+
+    // name variables like in the Wikipedia article. 
+    let a = width  - 1;
+    let b = height - 1;
+
+    let b0 = b % 2;
+
+    let a2 = a*a;
+    let b2 = b*b;
+    let mut dx = 4 * (1-a ) * b2;
+    let mut dy = 4 * (1+b0) * a2;
+    let mut err = dx + dy + b0 * a2;
+
+    let (fill_stroke, fill_opaque) = remap_draw_color(DRAW_COLOR_1, draw_colors);
+    let (line_stroke, line_opaque) = remap_draw_color(DRAW_COLOR_2, draw_colors);
+
+    // x1, x2 start on the left and right maxima of the horizontal axis
+    let mut x1 = x;
+    let mut x2 = x + width-1;
+    // y1, y2 start in the very center, 1px off in case of odd heights
+    let mut y2 = y + height / 2;
+    let mut y1 = y2 - b0;
+
+    let dx_inc = 8 * a2;
+    let dy_inc = 8 * b2;
+
+    while x1 <= x2 {
+
+        // ellipse outline with line color
+        if line_opaque {
+            set_pixel_unclipped_impl(screen, x1, y2, line_stroke);
+            set_pixel_unclipped_impl(screen, x2, y2, line_stroke);
+            set_pixel_unclipped_impl(screen, x1, y1, line_stroke);
+            set_pixel_unclipped_impl(screen, x2, y1, line_stroke);
+        }
+
+        let e2 = 2*err;
+
+        if e2 <= dy {
+            // filled ellipse with fill color
+            if fill_opaque {
+                let len = (x2-x1-1) as u32;
+                hline_stroke(screen, fill_stroke, x1+1, y2, len);
+                hline_stroke(screen, fill_stroke, x1+1, y1, len);
+            }
+            y2 += 1;
+            y1 -= 1;
+            dy += dy_inc; 
+            err += dy;
+        }
+        if e2 >= dx || e2 > dy {
+            x1 += 1;
+            x2 -= 1;
+            dx += dx_inc;
+            err += dx;
+        }
+    }
+
+    while y2 - y1 < height {
+        set_pixel_unclipped_impl(screen, x1-1, y1, line_stroke);
+        set_pixel_unclipped_impl(screen, x2+1, y1, line_stroke);
+        set_pixel_unclipped_impl(screen, x1-1, y2, line_stroke);
+        set_pixel_unclipped_impl(screen, x2+1, y2, line_stroke);
+        y2 += 1;
+        y1 -= 1;
+    }
+
+}
+
+#[test]
+fn test_oval_small_circular() {
+    // 8x5 pixels, with 4 pix/byte, that's 2 bytes/row, 10 bytes in total
+    let mut screen = ArrayScreen::<10,8>::new();
+    
+    let expected = ArrayScreen::new_with_fb_lines(&[
+        as_fb_vec(0b_00_11_11_11_00_00_00_00__u16),
+        as_fb_vec(0b_11_00_00_00_11_00_00_00__u16),
+        as_fb_vec(0b_11_00_00_00_11_00_00_00__u16),
+        as_fb_vec(0b_11_00_00_00_11_00_00_00__u16),
+        as_fb_vec(0b_00_11_11_11_00_00_00_00__u16),
+    ]);
+
+    oval_impl(&mut screen, 0x0040, 0, 0, 5, 5);
+    println!("{:?}", &screen);
+    assert_eq!(screen, expected);
+}
+
+#[test]
+fn test_oval_slim_horizontal() {
+    // 8x3 pixels, with 4 pix/byte, that's 2 bytes/row, 6 bytes in total
+    let mut screen = ArrayScreen::<6,8>::new();
+    
+    let expected = ArrayScreen::new_with_fb_lines(&[
+        as_fb_vec(0b_00_00_00_11_11_00_00_00__u16),
+        as_fb_vec(0b_11_11_11_11_11_11_11_11__u16),
+        as_fb_vec(0b_00_00_00_11_11_00_00_00__u16),
+    ]);
+    
+    oval_impl(&mut screen, 0x0040, 0, 0, 8, 3);
+    println!("{:?}", &screen);
+    assert_eq!(screen, expected);
 }
 
 pub fn text<T: Source<u8> + Sink<u8>>(fb: &mut T, text: &[u8], x: i32, y: i32, draw_colors: u16) {
@@ -781,7 +969,7 @@ pub fn text<T: Source<u8> + Sink<u8>>(fb: &mut T, text: &[u8], x: i32, y: i32, d
     }
 }
 
-fn as_fb_line(v: &Vec<u8>) -> String {
+fn as_fb_line(v: &[u8]) -> String {
     let prefix = "0b";
     let mut s = String::with_capacity(prefix.len() + v.len() * 4 * 3);
     s += prefix;
