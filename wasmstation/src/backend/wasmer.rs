@@ -131,11 +131,11 @@ impl Backend for WasmerBackend {
         .expect("write to MOUSE_BUTTONS_ADDR");
     }
 
-    fn write_save(&mut self) -> Option<[u8; 1024]> {
+    fn write_save_cache(&mut self) -> Option<[u8; 1024]> {
         self.fn_env.as_mut(&mut self.store).write_save()
     }
 
-    fn set_save(&mut self, data: [u8; 1024]) {
+    fn set_save_cache(&mut self, data: [u8; 1024]) {
         self.fn_env.as_mut(&mut self.store).save_cache.set(data);
     }
 }
@@ -349,9 +349,12 @@ fn diskr(env: FunctionEnvMut<WasmerRuntimeEnv>, dest: WasmPtr<u8>, size: u32) ->
 
     let mut src = env.data().save_cache.get().to_vec();
     src.resize(bytes_read as usize, 0);
-    ctx.view()
-        .write(dest.offset() as u64, &src)
-        .expect("write save bytes to memory");
+
+    dest
+        .slice(ctx.view(), bytes_read)
+        .expect("get memory slice")
+        .write_slice(&src)
+        .expect("write slice to memory");
 
     return bytes_read;
 }
@@ -360,12 +363,15 @@ fn diskw(env: FunctionEnvMut<WasmerRuntimeEnv>, src: WasmPtr<u8>, size: u32) -> 
     let ctx = Context::from_env(&env);
     let bytes_written = u32::min(size, 1024);
 
-    let mut buf: Vec<u8> = Vec::new();
-    let src = ctx.view().read(src.offset() as u64, &mut buf);
+    let mut buf = src
+        .slice(&ctx.view(), bytes_written)
+        .expect("get memory slice")
+        .read_to_vec()
+        .expect("get memory slice to vec");
     buf.resize(1024, 0);
 
-    env.data().needs_write.set(true);
     env.data().save_cache.set(buf.try_into().unwrap());
+    env.data().needs_write.set(true);
 
     return bytes_written;
 }

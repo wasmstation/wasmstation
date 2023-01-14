@@ -13,7 +13,7 @@ pub use renderer::launch;
 
 /// Common trait for webassembly backends.
 pub trait Backend {
-    /// Call the cart's `update()` function. 
+    /// Call the cart's `update()` function.
     /// See [Callbacks](https://wasm4.org/docs/reference/functions#callbacks)
     fn call_update(&mut self);
     /// Call the cart's `start()` function. 
@@ -32,10 +32,10 @@ pub trait Backend {
     /// [MOUSE_BUTTONS](https://wasm4.org/docs/reference/memory#mouse_buttons)
     /// registers, where the cart will read mouse input from.
     fn set_mouse(&mut self, x: i16, y: i16, buttons: u8);
-    /// Tells the renderer to save the save cache to disk.
-    fn write_save(&mut self) -> Option<[u8; 1024]>;
+    /// Tell the renderer to save the cache to disk.
+    fn write_save_cache(&mut self) -> Option<[u8; 1024]>;
     /// Set the backend's save cache.
-    fn set_save(&mut self, data: [u8; 1024]);
+    fn set_save_cache(&mut self, data: [u8; 1024]);
 }
 
 /// Common trait for reading from game memory. A `Source<T>` reads from

@@ -1,8 +1,9 @@
 use std::{
     fs::{self, File},
-    path::PathBuf,
+    io::Write,
+    path::Path,
     thread,
-    time::{Duration, Instant}, io::Write,
+    time::{Duration, Instant},
 };
 
 use anyhow::anyhow;
@@ -34,14 +35,13 @@ const TARGET_MS_PER_FRAME: Duration = Duration::from_millis((1000.0 / TARGET_FPS
 const SCREEN_LENGTH: usize = (SCREEN_SIZE * SCREEN_SIZE) as usize;
 const TEXTURE_LENGTH: usize = SCREEN_LENGTH * 3;
 
-pub fn launch(mut backend: impl Backend, path: &PathBuf, display_scale: u32) -> anyhow::Result<()> {
-    let mut save_file = path.clone();
+pub fn launch(mut backend: impl Backend, path: &Path, display_scale: u32) -> anyhow::Result<()> {
+    let mut save_file = path.to_path_buf();
     save_file.set_extension("disk");
 
     if let Ok(mut data) = fs::read(&save_file) {
-        println!("reading");
         data.resize(1024, 0);
-        backend.set_save(data.try_into().unwrap());
+        backend.set_save_cache(data.try_into().unwrap());
     }
 
     let title = format!(
@@ -53,8 +53,8 @@ pub fn launch(mut backend: impl Backend, path: &PathBuf, display_scale: u32) -> 
             .split('.')
             .next()
             .unwrap_or("wasmstation")
-            .replace("-", " ")
-            .replace("_", " ")
+            .replace('-', " ")
+            .replace('_', " ")
     );
 
     let sdl_context = sdl2::init().map_err(|s| anyhow!("{s}"))?;
@@ -114,7 +114,9 @@ pub fn launch(mut backend: impl Backend, path: &PathBuf, display_scale: u32) -> 
 
         // update state
         backend.call_update();
-        write_save(backend.write_save(), &save_file)?;
+        if let Some(data) = backend.write_save_cache() {
+            write_save(data, &save_file)?;
+        }
 
         // update screen
         backend.read_screen(&mut framebuffer, &mut palette);
@@ -156,7 +158,7 @@ fn framebuffer_to_rgb24(
     for idx in 0..SCREEN_LENGTH {
         let color = palette_srgb[((framebuffer[idx / 4] >> ((idx % 4) * 2)) & 0x3) as usize];
 
-        let tex_idx: usize = idx as usize * 3;
+        let tex_idx: usize = idx * 3;
 
         result[tex_idx] = color.red;
         result[tex_idx + 1] = color.green;
@@ -290,14 +292,10 @@ fn handle_input(
     false
 }
 
-fn read_save() {}
-
-fn write_save(backend: Option<[u8; 1024]>, path: &PathBuf) -> anyhow::Result<()> {
-    if let Some(backend) = backend {
-        let mut file = File::create(path)?; // create file if doesn't exist
-        file.write_all(&backend)?;
-        file.sync_all()?;
-    }
+fn write_save(data: [u8; 1024], path: &Path) -> anyhow::Result<()> {
+    let mut file = File::create(path)?;
+    file.write_all(&data)?;
+    file.sync_all()?;
 
     Ok(())
 }
