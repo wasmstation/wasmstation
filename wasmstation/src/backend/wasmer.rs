@@ -5,7 +5,7 @@ use wasmer::{
 
 use crate::{
     console, utils,
-    wasm4::{self, DRAW_COLORS_ADDR, FRAMEBUFFER_ADDR, FRAMEBUFFER_SIZE, GAMEPAD1_ADDR, GAMEPAD2_ADDR, GAMEPAD4_ADDR, GAMEPAD3_ADDR},
+    wasm4::{self, DRAW_COLORS_ADDR, FRAMEBUFFER_ADDR, FRAMEBUFFER_SIZE},
     Backend, Sink, Source,
 };
 
@@ -64,9 +64,12 @@ impl Backend for WasmerBackend {
         let view = self.fn_env.as_ref(&self.store).memory.view(&self.store);
 
         // clear the framebuffer (important)
-        if 0 == wasm4::SYSTEM_PRESERVE_FRAMEBUFFER & view.read_u8(wasm4::SYSTEM_FLAGS_ADDR as u64).unwrap() {
+        if 0 == wasm4::SYSTEM_PRESERVE_FRAMEBUFFER
+            & view.read_u8(wasm4::SYSTEM_FLAGS_ADDR as u64).unwrap()
+        {
             let slice = WasmPtr::<u8>::new(wasm4::FRAMEBUFFER_ADDR as u32)
-                .slice(&view, FRAMEBUFFER_SIZE as u32).unwrap();
+                .slice(&view, FRAMEBUFFER_SIZE as u32)
+                .unwrap();
             console::fb::clear(&mut WasmSliceSinkSource { slice });
         }
 
@@ -101,16 +104,29 @@ impl Backend for WasmerBackend {
         view.read_u8(wasm4::SYSTEM_FLAGS_ADDR as u64).unwrap()
     }
 
-    fn set_gamepad(&mut self, mut gamepad: u32) {
+    fn set_gamepad(&mut self, gamepad: u32) {
         let view = self.fn_env.as_ref(&self.store).memory.view(&self.store);
-        let addrs = [GAMEPAD1_ADDR, GAMEPAD2_ADDR, GAMEPAD3_ADDR, GAMEPAD4_ADDR];
-        for addr in addrs {
-            WasmPtr::<u8>::new(addr as u32).write(&view, (gamepad & 0xff) as u8);
-            gamepad = gamepad >> 8;
-        }
+
+        view.write(
+            wasm4::GAMEPAD1_ADDR as u64,
+            bytemuck::cast_slice(&[gamepad]),
+        )
+        .expect("write to GAMEPAD1_ADDR");
     }
 
-    fn set_mouse(&mut self, x: i16, y: i16, buttons: u8) {}
+    fn set_mouse(&mut self, x: i16, y: i16, buttons: u8) {
+        let view = self.fn_env.as_ref(&self.store).memory.view(&self.store);
+
+        view.write(wasm4::MOUSE_X_ADDR as u64, bytemuck::cast_slice(&[x]))
+            .expect("write to MOUSE_X_ADDR");
+        view.write(wasm4::MOUSE_Y_ADDR as u64, bytemuck::cast_slice(&[y]))
+            .expect("write to MOUSE_X_ADDR");
+        view.write(
+            wasm4::MOUSE_BUTTONS_ADDR as u64,
+            bytemuck::cast_slice(&[buttons]),
+        )
+        .expect("write to MOUSE_BUTTONS_ADDR");
+    }
 }
 
 struct WasmerRuntimeEnv {
@@ -142,13 +158,11 @@ struct Context<'a> {
     view: MemoryView<'a>,
 }
 
-impl <'a> Context<'a> {
-    fn from_env(env: &'a FunctionEnvMut<'a,WasmerRuntimeEnv>) -> Context<'a> {
+impl<'a> Context<'a> {
+    fn from_env(env: &'a FunctionEnvMut<'a, WasmerRuntimeEnv>) -> Context<'a> {
         let view = env.data().memory.view(&env.as_store_ref());
 
-        Self{
-            view,
-        }    
+        Self { view }
     }
 
     fn view(&'a self) -> &'a MemoryView<'a> {
@@ -157,19 +171,19 @@ impl <'a> Context<'a> {
 
     fn fb(&self) -> WasmSliceSinkSource<u8> {
         let slice = WasmPtr::<u8>::new(FRAMEBUFFER_ADDR as u32)
-        .slice(&self.view, FRAMEBUFFER_SIZE as u32)
-        .unwrap();
+            .slice(&self.view, FRAMEBUFFER_SIZE as u32)
+            .unwrap();
 
         WasmSliceSinkSource { slice }
     }
-    
+
     fn draw_colors(&self) -> u16 {
         WasmPtr::<u16>::new(DRAW_COLORS_ADDR as u32)
             .read(&self.view)
             .unwrap()
     }
 }
- 
+
 struct WasmSliceSinkSource<'a, T>
 where
     T: ValueType + Copy,
@@ -201,7 +215,7 @@ where
         for n in 0..FRAMEBUFFER_SIZE as u64 {
             self.slice.write(n, item).unwrap();
         }
-    }  
+    }
 }
 
 fn trace_utf8(env: FunctionEnvMut<WasmerRuntimeEnv>, ptr: WasmPtr<u8>, len: i32) {}
