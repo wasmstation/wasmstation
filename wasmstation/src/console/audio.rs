@@ -197,9 +197,9 @@ enum Mode {
 
 impl Mode {
     fn from_tone_flags(flags: u32) -> Self {
-        match flags & 0b01_00_11_00 {
-            wasm4::TONE_MODE1 => Mode::Mode1_12,
+        match flags & 0b00_00_11_00 {
             wasm4::TONE_MODE2 => Mode::Mode2_25,
+            wasm4::TONE_MODE1 => Mode::Mode1_12,
             wasm4::TONE_MODE3 => Mode::Mode3_50,
             wasm4::TONE_MODE4 => Mode::Mode4_75,
             _ => Mode::Mode1_12
@@ -240,6 +240,7 @@ impl Default for Pan {
 struct AudioChannel {
 
     start_frame: FrameCount,
+    pulse_switch_phase: i32,
     samples_rendered: i32,
     current_config: ToneConfiguration,
     pending_config: Option<ToneConfiguration>,
@@ -304,7 +305,15 @@ impl AudioChannel {
 
     fn commit_pending_config(&mut self) {
         if let Some(new_config) = self.pending_config.take() {
+            let phase_per_mil = match new_config.mode {
+                Mode::Mode1_12 => 125,
+                Mode::Mode2_25 => 250,
+                Mode::Mode3_50 => 500,
+                Mode::Mode4_75 => 750,
+            };
+
             self.phase = 0;
+            self.pulse_switch_phase = self.sample_rate * phase_per_mil / 1000;
             self.samples_rendered = 0;
             self.current_config = new_config;
         }
@@ -403,7 +412,16 @@ impl AudioGenerator {
     fn render_sample(&self, channel: &mut AudioChannel) -> Sample {
         match self {
             Self::Triangle => Self::render_triangle_sample(channel),
+            Self::Pulse    => Self::render_pulse_sample(channel),
             _ => Sample::zero()
+        }
+    }
+
+    fn render_pulse_sample(channel: &mut AudioChannel) -> Sample {
+        if channel.phase < channel.pulse_switch_phase {
+            channel.current_volume
+        } else {
+            -channel.current_volume
         }
     }
 
