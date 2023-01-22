@@ -339,8 +339,8 @@ impl ToneConfiguration {
         let sustain_end_frame = decay_end_frame   + duration_bytes[0] as FrameCount;
         let release_end_frame = sustain_end_frame + duration_bytes[1] as FrameCount;
 
-        let peak_volume    = volume_bytes[0] as i32 * channel.generator.max_volume() / MAX_VOLUME as i32;
-        let sustain_volume = volume_bytes[1] as i32 * channel.generator.max_volume() / MAX_VOLUME as i32;
+        let peak_volume    = volume_bytes[1] as i32 * channel.generator.max_volume() / MAX_VOLUME as i32;
+        let sustain_volume = volume_bytes[0] as i32 * channel.generator.max_volume() / MAX_VOLUME as i32;
 
         Self {
             freq_start: (0x0000ffff & value.frequency) as i32,
@@ -380,7 +380,7 @@ impl ToneConfiguration {
         } else if sample_count < self.release_end {
             let x = sample_count-self.sustain_end;
             let x_max = self.release_end-self.sustain_end;
-            lerp(self.peak_volume, self.sustain_volume, x, x_max)
+            lerp(self.sustain_volume, 0, x, x_max)
         } else {
             0
         }
@@ -402,8 +402,8 @@ fn lerp<N: Num+Copy>(y0: N, y1: N, x: N, x_max: N) -> N {
 impl AudioGenerator {
     fn render_sample(&self, channel: &mut AudioChannel) -> Sample {
         match self {
-            Self::Triangle 
-            | _ => Self::render_triangle_sample(channel),
+            Self::Triangle => Self::render_triangle_sample(channel),
+            _ => Sample::zero()
         }
     }
 
