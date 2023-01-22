@@ -6,10 +6,12 @@ pub mod utils;
 pub mod wasm4;
 
 pub mod backend;
-mod console;
+pub mod console;
 pub mod renderer;
 
 pub use renderer::launch;
+
+type FrameCount = u32;
 
 /// Common trait for webassembly backends.
 pub trait Backend {

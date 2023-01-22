@@ -19,3 +19,6 @@ palette = "0.6"
 
 # backend
 wasmer = "3.0"
+
+# audio
+cpal = "0.14.2"

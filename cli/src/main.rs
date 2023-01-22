@@ -2,6 +2,7 @@ use std::{fs, path::PathBuf};
 
 use argh::FromArgs;
 use wasmstation::backend::WasmerBackend;
+use wasmstation::console::Console;
 
 #[derive(FromArgs)]
 #[argh(description = "Run wasm4 compatible games.")]
@@ -33,8 +34,10 @@ fn main() {
 
     pretty_env_logger::init();
 
+    let console = Console::new();
+
     wasmstation::launch(
-        WasmerBackend::new(&wasm_bytes).unwrap(),
+        WasmerBackend::new(&wasm_bytes, &console).unwrap(),
         &title,
         args.display_scale,
     )
