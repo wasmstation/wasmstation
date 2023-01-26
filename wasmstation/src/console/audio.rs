@@ -126,25 +126,43 @@ impl <P: AudioCommandPoller> AudioProcessor<P> {
             }
         }
 
-        let mut left_right = (0,0);
-        let mut data_ch_idx = 0;
-        for sample in data.iter_mut() {
-            if data_ch_idx == 0 {
-                left_right = (0,0);
-                for channel in &mut self.channels {
-                    let out = channel.next();
-                    left_right.0 += out.0;
-                    left_right.1 += out.1;
-                }
+        // fill all sample frames in data buffer. Note that the samples in
+        // the buffer are organized in frames - so if `data` consists of 1000
+        // elements in 2 channels (aka stereo), there will be 500 frames of 2 samples each, 
+        // where each frame holds the two samples of the two channels. So the
+        // sequence is
+        // ```
+        // | sample 0  | sample 1  | sample 2  | sample 3  | sample 4  | ...
+        // |        frame 0        |        frame 1        |       frame 2
+        // | channel 0 | channel 1 | channel 0 | channel 1 | channel 0 | ...
+        // ```
+        // This is why we operate on chunks of data, where each chunk is a frame.
+        // also note that the size of frames is variable, it depends on a
+        for sample in data.chunks_mut(audio_channels as usize) {
+            let mut left_right = [0, 0];
+            for channel in &mut self.channels {
+                let out = channel.next();
+                left_right[0] += out.0;
+                left_right[1] += out.1;
             }
 
-            *sample = match data_ch_idx {
-                0 => left_right.0 as f32 / Self::MAX_AMPLITUDE as f32,
-                1 => left_right.1 as f32 / Self::MAX_AMPLITUDE as f32,
-                _ => 0.0
-            };
-
-            data_ch_idx = (data_ch_idx+1) % audio_channels;
+            // we can't just iterate over the chunks because
+            // they may be longer or shorter than our sample.
+            // so the most flexible solution is to use two
+            // iterators and break whenever any of them is None
+            let mut sample_it = sample.iter_mut();
+            let mut left_right_it = left_right.iter();
+            loop {
+                if let Some(s) = left_right_it.next() {
+                    if let Some(t) =  sample_it.next() {
+                        *t = (*s) as f32 / Self::MAX_AMPLITUDE as f32;
+                    } else {
+                        break;
+                    }
+                } else {
+                    break;
+                }
+            }
         }
     }
 
