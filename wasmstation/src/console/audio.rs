@@ -446,17 +446,17 @@ impl AudioGenerator {
     /// Renders a sample
     fn render_triangle_sample(channel: &mut AudioChannel) -> Sample {
 
-        let n = (2*channel.phase - channel.sample_rate).abs() - channel.sample_rate;
+        let n = 2*(2*channel.phase - channel.sample_rate).abs() - channel.sample_rate;
         n * channel.current_volume / channel.sample_rate
 
     }
 
     fn max_volume(&self) -> i32 {
-        if let Self::Triangle = self {
-            0x1333
-        } else {
-            0x2000
-        }
+        // the original w4 implementation
+        // uses 0x1333 for the triangle generator and 0x2000
+        // for all others, but for some reason that difference
+        // doesn't apply to wasmstation...
+        0x2000
     }
     
 }
