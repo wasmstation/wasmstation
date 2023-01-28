@@ -446,34 +446,9 @@ impl AudioGenerator {
     /// Renders a sample
     fn render_triangle_sample(channel: &mut AudioChannel) -> Sample {
 
-        // the triangle wave is split into four sections:
-        // 0: rise 0..vol
-        // 1: fall vol..0
-        // 2: fall 0..-vol
-        // 3: rise -vol..0
-        //
-        // the following cacluates in which of the four
-        // segments we currently are, from the current phase
-        // value. It takes into account channel.phase runs
-        // from 0..channel.sample_rate.
-        // 
-        let mut segment = 0;
-        let mut f = 4 * channel.phase;
-        let s4 = channel.sample_rate;
-        while f > s4 {
-            f -= s4;
-            segment += 1;
-        }
+        let n = (2*channel.phase - channel.sample_rate).abs() - channel.sample_rate;
+        n * channel.current_volume / channel.sample_rate
 
-        // depeding on the segment, caculate the current value via
-        // lerp
-        let vol = channel.current_volume;
-        match segment {
-            0 => lerp(0, channel.current_volume, f, s4),
-            1 => lerp(channel.current_volume, 0, f, s4),
-            2 => lerp(0, -channel.current_volume, f, s4),
-            _ => lerp(-channel.current_volume, 0, f, s4)
-        }
     }
 
     fn max_volume(&self) -> i32 {
