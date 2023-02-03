@@ -1,3 +1,2 @@
 [workspace]
 members = ["cli", "wasmstation"]
-resolver = "2"

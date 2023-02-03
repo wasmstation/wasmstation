@@ -6,10 +6,18 @@ use wasmer::{
 };
 
 use crate::{
-    console::{self, Console}, utils,
+    console::{self, Console},
+    utils,
     wasm4::{self, DRAW_COLORS_ADDR, FRAMEBUFFER_ADDR, FRAMEBUFFER_SIZE},
     Backend, Sink, Source,
 };
+
+#[macro_export]
+macro_rules! wasmer_precompiled {
+    ($file:expr) => {
+        $crate::backend::WasmerBackend::new(include_bytes!($file), &$crate::console::Console::new())
+    };
+}
 
 pub struct WasmerBackend {
     fn_env: FunctionEnv<WasmerRuntimeEnv>,
@@ -19,7 +27,10 @@ pub struct WasmerBackend {
 
 impl WasmerBackend {
     pub fn new(wasm_bytes: &[u8], console: &Console) -> anyhow::Result<Self> {
-        Self::precompiled(&Module::new(&Store::default(), wasm_bytes)?.serialize()?, console)
+        Self::precompiled(
+            &Module::new(&Store::default(), wasm_bytes)?.serialize()?,
+            console,
+        )
     }
 
     pub fn precompiled(module_bytes: &[u8], console: &Console) -> anyhow::Result<Self> {
@@ -352,8 +363,7 @@ fn diskr(env: FunctionEnvMut<WasmerRuntimeEnv>, dest: WasmPtr<u8>, size: u32) ->
     let mut src = env.data().save_cache.get().to_vec();
     src.resize(bytes_read as usize, 0);
 
-    dest
-        .slice(ctx.view(), bytes_read)
+    dest.slice(ctx.view(), bytes_read)
         .expect("get memory slice")
         .write_slice(&src)
         .expect("write slice to memory");

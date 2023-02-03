@@ -35,28 +35,13 @@ const TARGET_MS_PER_FRAME: Duration = Duration::from_millis((1000.0 / TARGET_FPS
 const SCREEN_LENGTH: usize = (SCREEN_SIZE * SCREEN_SIZE) as usize;
 const TEXTURE_LENGTH: usize = SCREEN_LENGTH * 3;
 
-pub fn launch(mut backend: impl Backend, path: &Path, display_scale: u32) -> anyhow::Result<()> {
-    let mut save_file = path.to_path_buf();
-    save_file.set_extension("disk");
-
+pub fn launch(mut backend: impl Backend, title: &str, display_scale: u32, save_file: &Path) -> anyhow::Result<()> {
     if let Ok(mut data) = fs::read(&save_file) {
         data.resize(1024, 0);
         backend.set_save_cache(data.try_into().unwrap());
     }
 
-    let title = format!(
-        "wasmstation - {}",
-        path.file_name()
-            .expect("path must be a file")
-            .to_str()
-            .expect("map path to utf8")
-            .split('.')
-            .next()
-            .unwrap_or("wasmstation")
-            .replace('-', " ")
-            .replace('_', " ")
-    );
-
+    let title = format!("wasmstation - {title}");
     let sdl_context = sdl2::init().map_err(|s| anyhow!("{s}"))?;
     let mut window = sdl_context
         .video()

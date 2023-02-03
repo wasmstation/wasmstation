@@ -9,6 +9,7 @@ edition = "2021"
 argh = "0.1"
 wasmstation = { path = "../wasmstation" }
 pretty_env_logger = "0.4"
+tempfile = "3.3.0"
 
 [[bin]]
 name = "wasmstation"
