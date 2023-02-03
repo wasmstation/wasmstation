@@ -178,10 +178,10 @@ impl <P: AudioCommandPoller> AudioProcessor<P> {
     fn new(command_receiver: P) -> AudioProcessor<P> {
         AudioProcessor { 
             channels: [
-                AudioChannel {generator: AudioGenerator::Pulse,    ..AudioChannel::default()},
-                AudioChannel {generator: AudioGenerator::Pulse,    ..AudioChannel::default()},
-                AudioChannel {generator: AudioGenerator::Triangle, ..AudioChannel::default()},
-                AudioChannel {generator: AudioGenerator::Noise,    ..AudioChannel::default()},
+                AudioChannel {generator: AudioGenerator::pulse(),    ..AudioChannel::default()},
+                AudioChannel {generator: AudioGenerator::pulse(),    ..AudioChannel::default()},
+                AudioChannel {generator: AudioGenerator::triangle(), ..AudioChannel::default()},
+                AudioChannel {generator: AudioGenerator::noise(),    ..AudioChannel::default()},
             ], 
             command_receiver, 
             current_frame: 0 
@@ -190,7 +190,7 @@ impl <P: AudioCommandPoller> AudioProcessor<P> {
 
     fn set_sample_rate(&mut self, sample_rate: i32) {
         for ch in &mut self.channels {
-            ch.sample_rate = sample_rate;
+            ch.state.sample_rate = sample_rate;
         }
     }
 
@@ -255,33 +255,38 @@ impl Default for Pan {
 }
 
 #[derive(Default)]
+struct AudioChannelState {
+    // samples / freq
+    phase: i32,
+    current_freq: i32,
+    current_volume: i32,
+    pulse_switch_phase: i32,
+    sample_rate: i32,
+}
+
+#[derive(Default)]
 struct AudioChannel {
 
+    state: AudioChannelState,
+
     start_frame: FrameCount,
-    pulse_switch_phase: i32,
     samples_rendered: i32,
     current_config: ToneConfiguration,
     pending_config: Option<ToneConfiguration>,
     generator: AudioGenerator,
 
-    sample_rate: i32,
-
-    // samples / freq
-    phase: i32,
-    current_freq: i32,
-    current_volume: i32,
 }
 
 impl AudioChannel {
     fn next(&mut self) -> (Sample,Sample) {
 
         let phase_ended;
-        if self.current_freq == 0 {
+        if self.state.current_freq == 0 {
             // when the current_freq
-            self.phase = 0;
+            self.state.phase = 0;
             phase_ended = true;
-        } else if self.phase >= self.sample_rate {
-            self.phase -= self.sample_rate;
+        } else if self.state.phase >= self.state.sample_rate {
+            self.state.phase -= self.state.sample_rate;
             phase_ended = true
         } else {
             phase_ended = false
@@ -291,28 +296,28 @@ impl AudioChannel {
             self.commit_pending_config();
             
             if self.samples_rendered >= self.current_config.release_end {
-                self.current_freq = 0;
-                self.current_volume = 0;
+                self.state.current_freq = 0;
+                self.state.current_volume = 0;
             } else {
                 // recalculate volume
-                self.current_volume = self.current_config.volume_at(self.samples_rendered);
+                self.state.current_volume = self.current_config.volume_at(self.samples_rendered);
 
                 // recalculate frequency
-                self.current_freq = self.current_config.frequency_at(self.samples_rendered);
+                self.state.current_freq = self.current_config.frequency_at(self.samples_rendered);
             }
         }
 
-        if self.current_freq == 0 {
+        if self.state.current_freq == 0 {
             return (0, 0)
         }
 
 
         // render sample
         let gen = &mut self.generator;
-        let current_output = gen.clone().render_sample(self);
+        let current_output = self.generator.render_sample(&mut self.state);
 
         self.samples_rendered += 1;
-        self.phase += self.current_freq;
+        self.state.phase += self.state.current_freq;
 
         match &self.current_config.pan {
             Pan::Center => (current_output, current_output),
@@ -330,8 +335,8 @@ impl AudioChannel {
                 Mode::Mode4_75 => 750,
             };
 
-            self.phase = 0;
-            self.pulse_switch_phase = self.sample_rate * phase_per_mil / 1000;
+            self.state.phase = 0;
+            self.state.pulse_switch_phase = self.state.sample_rate * phase_per_mil / 1000;
             self.samples_rendered = 0;
             self.current_config = new_config;
         }
@@ -384,7 +389,7 @@ impl ToneConfiguration {
     }
 
     fn to_samples(frames: FrameCount, channel: &AudioChannel) -> i32 {
-        frames as i32 * channel.sample_rate / TARGET_FPS as i32
+        frames as i32 * channel.state.sample_rate / TARGET_FPS as i32
     }
 
     fn frequency_at(&self, sample_count: i32) -> i32 {
@@ -415,11 +420,76 @@ impl ToneConfiguration {
 
 }
 
+struct AudioGenerator {
+    generator_type: AudioGeneratorType,
+}
+
+impl AudioGenerator {
+    fn pulse() -> Self {
+        Self {generator_type: AudioGeneratorType::Pulse}
+    }
+    fn triangle() -> Self {
+        Self {generator_type: AudioGeneratorType::Triangle}
+    }
+    fn noise() -> Self {
+        Self {generator_type: AudioGeneratorType::Noise(NoiseCore::default())}
+    }
+}
+
 #[derive(Clone)]
-enum AudioGenerator {
+enum AudioGeneratorType {
     Pulse,
     Triangle,
-    Noise
+    Noise(NoiseCore)
+}
+
+
+/// See https://en.wikipedia.org/wiki/Linear_congruential_generator
+#[derive(Clone)]
+struct LCRNG {
+    seed: u16
+}
+
+impl LCRNG {
+    fn next(&mut self) -> u16 {
+        self.seed ^= self.seed >> 7;
+        self.seed ^= self.seed << 9;
+        self.seed ^= self.seed >> 13;
+        self.seed
+    }
+}
+
+impl Default for LCRNG {
+    fn default() -> Self {
+        Self { seed: 0x0001 }   // arbitrary seed
+    }
+}
+
+
+#[derive(Default, Clone)]
+struct NoiseCore {
+    rng: LCRNG,
+    sample_value: Sample,
+    cycle: u32
+}
+
+impl NoiseCore {
+    const FLIP_CYCLE_LIMIT :u32 = 1_000_000;
+    fn render_sample(&mut self, channel: &AudioChannelState) -> Sample {
+        let f2 = (channel.current_freq * channel.current_freq) as u32;
+        self.cycle += f2;
+
+        while self.cycle > Self::FLIP_CYCLE_LIMIT {
+            self.cycle -= Self::FLIP_CYCLE_LIMIT;
+            self.sample_value = if self.rng.next() & 0x1u16 == 1u16 {
+                channel.current_volume
+            } else {
+                -channel.current_volume
+            }
+        }
+        
+        self.sample_value
+    }
 }
 
 fn lerp<N: Num+Copy>(y0: N, y1: N, x: N, x_max: N) -> N {
@@ -427,27 +497,27 @@ fn lerp<N: Num+Copy>(y0: N, y1: N, x: N, x_max: N) -> N {
 }
 
 impl AudioGenerator {
-    fn render_sample(&self, channel: &mut AudioChannel) -> Sample {
-        match self {
-            Self::Triangle => Self::render_triangle_sample(channel),
-            Self::Pulse    => Self::render_pulse_sample(channel),
-            _ => Sample::zero()
+    fn render_sample(&mut self, state: &mut AudioChannelState) -> Sample {
+        match &mut self.generator_type {
+            AudioGeneratorType::Triangle => Self::render_triangle_sample(state),
+            AudioGeneratorType::Pulse    => Self::render_pulse_sample(state),
+            AudioGeneratorType::Noise(core) => core.render_sample(state)
         }
     }
 
-    fn render_pulse_sample(channel: &mut AudioChannel) -> Sample {
-        if channel.phase < channel.pulse_switch_phase {
-            channel.current_volume
+    fn render_pulse_sample(state: &mut AudioChannelState) -> Sample {
+        if state.phase < state.pulse_switch_phase {
+            state.current_volume
         } else {
-            -channel.current_volume
+            -state.current_volume
         }
     }
 
     /// Renders a sample
-    fn render_triangle_sample(channel: &mut AudioChannel) -> Sample {
+    fn render_triangle_sample(state: &AudioChannelState) -> Sample {
 
-        let n = 2*(2*channel.phase - channel.sample_rate).abs() - channel.sample_rate;
-        n * channel.current_volume / channel.sample_rate
+        let n = 2*(2*state.phase - state.sample_rate).abs() - state.sample_rate;
+        n * state.current_volume / state.sample_rate
 
     }
 
@@ -464,7 +534,7 @@ impl AudioGenerator {
 
 impl Default for AudioGenerator {
     fn default() -> Self {
-        Self::Pulse
+        Self { generator_type: AudioGeneratorType::Pulse }
     }
 }
 
