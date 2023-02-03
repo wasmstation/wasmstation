@@ -20,15 +20,15 @@ struct Args {
 
 fn main() {
     let args: Args = argh::from_env();
-    let wasm_bytes = fs::read(&args.path).expect("failed to read game");
 
     pretty_env_logger::init();
 
+    let wasm_bytes = fs::read(&args.path).expect("failed to read game");
     let console = Console::new();
 
     wasmstation::launch(
         WasmerBackend::new(&wasm_bytes, &console).unwrap(),
-        &title,
+        &args.path,
         args.display_scale,
     )
     .unwrap();

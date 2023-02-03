@@ -142,7 +142,7 @@ impl Backend for WasmerBackend {
 
 struct WasmerRuntimeEnv {
     memory: Memory,
-    api: console::Api
+    api: console::Api,
     pub save_cache: Cell<[u8; 1024]>,
     pub needs_write: Cell<bool>,
 }
