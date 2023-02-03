@@ -58,9 +58,7 @@ impl AudioState {
         let config = supported_config.config();
         audio_processor.set_sample_rate(config.sample_rate.0 as i32);
         let data_callback = move |data: &mut [f32],info: &OutputCallbackInfo|{
-            audio_processor.render_audio(config.channels, data);
-            let t = info.timestamp();
-            ()
+            audio_processor.render_audio(config.channels, data)
         };
         let error_callback = move |err| {
             warn!("{}", err)
@@ -149,18 +147,12 @@ impl <P: AudioCommandPoller> AudioProcessor<P> {
             // we can't just iterate over the chunks because
             // they may be longer or shorter than our sample.
             // so the most flexible solution is to use two
-            // iterators and break whenever any of them is None
+            // iterators and continue whenever any of them is None
             let mut sample_it = sample.iter_mut();
-            let mut left_right_it = left_right.iter();
-            loop {
-                if let Some(s) = left_right_it.next() {
-                    if let Some(t) =  sample_it.next() {
-                        *t = (*s) as f32 / Self::MAX_AMPLITUDE as f32;
-                    } else {
-                        break;
-                    }
-                } else {
-                    break;
+            let left_right_it = left_right.iter();
+            for s in left_right_it {
+                if let Some(t) =  sample_it.next() {
+                    *t = (*s) as f32 / Self::MAX_AMPLITUDE as f32;
                 }
             }
         }
@@ -170,7 +162,7 @@ impl <P: AudioCommandPoller> AudioProcessor<P> {
         // find out which channel this ToneSpec applies to
         let channel_idx = (tone_spec.flags & 0b11) as usize;
         let channel = &mut  self.channels[channel_idx];
-        let config = ToneConfiguration::from_tone_spec(&tone_spec, channel);
+        let config = ToneConfiguration::from_tone_spec(tone_spec, channel);
 
         channel.pending_config = Some(config);
     }
@@ -206,6 +198,7 @@ impl AudioCommandPoller for mpsc::Receiver<AudioCommand> {
     }
 }
 
+#[allow(clippy::enum_variant_names)]    // there are no proper names I could come up with, so the variants are called like the type :)
 enum Mode {
     Mode1_12,
     Mode2_25,
@@ -366,7 +359,7 @@ impl ToneConfiguration {
 
         // calculate at frame offsets for ADSR boundaries 
         let duration_bytes = bytemuck::bytes_of(&value.duration);
-        let attack_end_frame =  0                 + duration_bytes[3] as FrameCount;
+        let attack_end_frame =                      duration_bytes[3] as FrameCount;
         let decay_end_frame =   attack_end_frame  + duration_bytes[2] as FrameCount; 
         let sustain_end_frame = decay_end_frame   + duration_bytes[0] as FrameCount;
         let release_end_frame = sustain_end_frame + duration_bytes[1] as FrameCount;
@@ -446,11 +439,11 @@ enum AudioGeneratorType {
 
 /// See https://en.wikipedia.org/wiki/Linear_congruential_generator
 #[derive(Clone)]
-struct LCRNG {
+struct LcRng {
     seed: u16
 }
 
-impl LCRNG {
+impl LcRng {
     fn next(&mut self) -> u16 {
         self.seed ^= self.seed >> 7;
         self.seed ^= self.seed << 9;
@@ -459,7 +452,7 @@ impl LCRNG {
     }
 }
 
-impl Default for LCRNG {
+impl Default for LcRng {
     fn default() -> Self {
         Self { seed: 0x0001 }   // arbitrary seed
     }
@@ -468,7 +461,7 @@ impl Default for LCRNG {
 
 #[derive(Default, Clone)]
 struct NoiseCore {
-    rng: LCRNG,
+    rng: LcRng,
     sample_value: Sample,
     cycle: u32
 }
