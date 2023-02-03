@@ -22,16 +22,6 @@ fn main() {
     let args: Args = argh::from_env();
     let wasm_bytes = fs::read(&args.path).expect("failed to read game");
 
-    let title = args
-        .path
-        .file_name()
-        .map(|t| t.to_str().unwrap_or("wasmstation"))
-        .unwrap_or("wasmstation")
-        .split('.')
-        .next()
-        .unwrap_or("wasmstation")
-        .replace("-", " ");
-
     pretty_env_logger::init();
 
     let console = Console::new();
