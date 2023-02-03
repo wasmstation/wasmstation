@@ -6,7 +6,7 @@ use wasmer::{
 };
 
 use crate::{
-    console, utils,
+    console::{self, Console}, utils,
     wasm4::{self, DRAW_COLORS_ADDR, FRAMEBUFFER_ADDR, FRAMEBUFFER_SIZE},
     Backend, Sink, Source,
 };
@@ -18,16 +18,16 @@ pub struct WasmerBackend {
 }
 
 impl WasmerBackend {
-    pub fn new(wasm_bytes: &[u8]) -> anyhow::Result<Self> {
-        Self::precompiled(&Module::new(&Store::default(), wasm_bytes)?.serialize()?)
+    pub fn new(wasm_bytes: &[u8], console: &Console) -> anyhow::Result<Self> {
+        Self::precompiled(&Module::new(&Store::default(), wasm_bytes)?.serialize()?, console)
     }
 
-    pub fn precompiled(module_bytes: &[u8]) -> anyhow::Result<Self> {
+    pub fn precompiled(module_bytes: &[u8], console: &Console) -> anyhow::Result<Self> {
         let mut store = Store::new(Engine::headless());
         let module = unsafe { Module::deserialize(&store, module_bytes)? };
 
         // init memory and env
-        let wasm_env = WasmerRuntimeEnv::new(&mut store)?;
+        let wasm_env = WasmerRuntimeEnv::new(&mut store, console.create_api())?;
         let fn_env = FunctionEnv::new(&mut store, wasm_env);
 
         // see https://wasm4.org/docs/reference/functions
@@ -142,12 +142,13 @@ impl Backend for WasmerBackend {
 
 struct WasmerRuntimeEnv {
     memory: Memory,
+    api: console::Api
     pub save_cache: Cell<[u8; 1024]>,
     pub needs_write: Cell<bool>,
 }
 
 impl WasmerRuntimeEnv {
-    pub fn new(store: &mut Store) -> anyhow::Result<Self> {
+    pub fn new(store: &mut Store, api: console::Api) -> anyhow::Result<Self> {
         // this is important, it's all the memory that the game is allowed to use.
         let memory = Memory::new(store, MemoryType::new(1, Some(1), false))?;
 
@@ -165,6 +166,7 @@ impl WasmerRuntimeEnv {
 
         Ok(Self {
             memory,
+            api,
             save_cache: Cell::new([0; 1024]),
             needs_write: Cell::new(false),
         })
@@ -383,4 +385,5 @@ fn tone(
     volume: u32,
     flags: u32,
 ) {
+    env.data().api.tone(frequency, duration, volume, flags)
 }
