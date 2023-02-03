@@ -11,4 +11,4 @@ opt-level = "s"
 strip = true
 
 [dependencies]
-wasmstation = { git = "https://github.com/wasmstation/wasmstation", branch = "implement-precompiled", crate = "wasmstation" }
+wasmstation = { git = "https://github.com/wasmstation/wasmstation", crate = "wasmstation" }
