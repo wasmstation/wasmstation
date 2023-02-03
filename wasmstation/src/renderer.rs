@@ -41,7 +41,6 @@ pub fn launch(mut backend: impl Backend, title: &str, display_scale: u32, save_f
         backend.set_save_cache(data.try_into().unwrap());
     }
 
-    let title = format!("wasmstation - {title}");
     let sdl_context = sdl2::init().map_err(|s| anyhow!("{s}"))?;
     let mut window = sdl_context
         .video()

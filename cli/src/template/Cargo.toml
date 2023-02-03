@@ -3,8 +3,12 @@ name = "cart"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
 
-# in the future this should be replaced with crates.io
 [dependencies]
 wasmstation = { git = "https://github.com/wasmstation/wasmstation", branch = "implement-precompiled", crate = "wasmstation" }

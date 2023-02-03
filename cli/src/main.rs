@@ -1,11 +1,11 @@
-use std::{env, process::{self, Command}};
+use std::{
+    env,
+    process::{self, Command},
+};
 use std::{ffi::OsStr, fs, path::PathBuf, str::FromStr};
 
 use argh::FromArgs;
 use wasmstation::{backend::WasmerBackend, console::Console};
-
-const CARGO_TOML_TEMPLATE: &str = include_str!("template/Cargo.toml");
-const MAIN_RS_TEMPLATE: &str = include_str!("template/main.rs");
 
 #[derive(FromArgs)]
 /// Run WASM-4 compatible games.
@@ -50,14 +50,17 @@ fn run(args: Run) {
 
     let file_name = &args.cart.file_name().unwrap_or(OsStr::new("cart"));
 
-    let title = file_name
-        .to_str()
-        .unwrap_or("cart")
-        .split('.')
-        .next()
-        .unwrap_or("cart")
-        .replace('-', " ")
-        .replace('_', " ");
+    let title = format!(
+        "wasmstation - {}",
+        file_name
+            .to_str()
+            .unwrap_or("cart")
+            .split('.')
+            .next()
+            .unwrap_or("cart")
+            .replace('-', " ")
+            .replace('_', " ")
+    );
 
     let mut save_file = env::current_dir().expect("current directory");
     save_file.push(&title);
@@ -85,7 +88,7 @@ struct Build {
         option,
         short = 'o',
         long = "out",
-        default = "PathBuf::from_str(\"output.cart\").unwrap()"
+        default = "PathBuf::from_str(\"cart.out\").unwrap()"
     )]
     out: PathBuf,
 
@@ -101,9 +104,17 @@ struct Build {
 fn build(args: Build) {
     let tempdir = tempfile::tempdir().expect("get temporary directory");
 
-    fs::write(tempdir.path().join("Cargo.toml"), CARGO_TOML_TEMPLATE).expect("write Cargo.toml");
+    fs::write(
+        tempdir.path().join("Cargo.toml"),
+        include_str!("template/Cargo.toml"),
+    )
+    .expect("write Cargo.toml");
     fs::create_dir_all(tempdir.path().join("src")).expect("create src dir");
-    fs::write(tempdir.path().join("src/main.rs"), MAIN_RS_TEMPLATE).expect("write main.rs");
+    fs::write(
+        tempdir.path().join("src/main.rs"),
+        include_str!("template/main.rs"),
+    )
+    .expect("write main.rs");
 
     let savefile = args.cart.file_name().unwrap_or(OsStr::new("savefile"));
     let display_scale = &args.display_scale.to_string();
@@ -115,29 +126,40 @@ fn build(args: Build) {
         ("CART_DISPLAY_SCALE", OsStr::new(display_scale)),
     ];
 
-    // if cfg!(target_os = "windows") {
-    //     Command::new("cmd")
-    //         .current_dir(tempdir.path())
-    //         .args(["/C", "cargo build --release"])
-    //         .envs(env)
-    //         .output()
-    //         .expect("run cargo build");
+    println!("Building...");
 
-    //     fs::copy(tempdir.path().join("\\target\\release\\cart.exe"), args.out)
-    //         .expect("copy resulting executable to out directory");
-    // } else {
-    let status = Command::new("sh")
-        .current_dir(tempdir.path())
-        .args(["-c", "cargo build --release"])
-        .envs(env)
-        .status()
-        .expect("run cargo build");
+    if cfg!(target_os = "windows") {
+        let status = Command::new("cmd")
+            .current_dir(tempdir.path())
+            .args(["/C", "cargo build --release"])
+            .envs(env)
+            .status()
+            .expect("run cargo build");
 
-    if !status.success() {
-        process::exit(1);
+        if !status.success() {
+            process::exit(1);
+        }
+
+        fs::copy(tempdir.path().join("target\\release\\cart.exe"), &args.out)
+            .expect("copy resulting executable to out directory");
+    } else {
+        let status = Command::new("sh")
+            .current_dir(tempdir.path())
+            .args(["-c", "cargo build --release"])
+            .envs(env)
+            .status()
+            .expect("run cargo build");
+
+        if !status.success() {
+            process::exit(1);
+        }
+
+        fs::copy(tempdir.path().join("target/release/cart"), &args.out)
+            .expect("copy resulting executable to out directory");
     }
 
-    fs::copy(tempdir.path().join("target/release/cart"), args.out)
-        .expect("copy resulting executable to out directory");
-    // }
+    println!(
+        "Game created at {}",
+        args.out.to_str().expect("executable path to string")
+    );
 }
