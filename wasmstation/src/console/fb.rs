@@ -763,8 +763,20 @@ fn hline_stroke<T: Screen>(
     y: i32,
     len: u32
 ) {
-    // TODO: create performant version of hline
-    line_stroke(screen, stroke, x, y, x+(len as i32)-1, y);
+    if y < 0 || y > T::HEIGHT as i32 {
+        return;
+    }
+
+    let start_x = x.max(0);
+    let end_x = (len as i32 + x).min(T::WIDTH as i32);
+
+    if start_x > end_x {
+        return;
+    }
+
+    for x in start_x..end_x {
+        set_pixel_impl(screen, x, y, stroke);
+    }
 }
 
 pub(crate) fn vline<T: Source<u8> + Sink<u8>>(
@@ -787,8 +799,20 @@ fn vline_stroke<T: Screen>(
     y: i32,
     len: u32
 ) {
-    // TODO: create performant version of hline
-    line_stroke(screen, stroke, x, y, x, y+(len as i32)-1);
+    if y + len as i32 <= 0 || x < 0 || x >= T::WIDTH as i32 {
+        return;
+    }
+
+    let start_y: i32 = y.max(0);
+    let end_y: i32 = (T::HEIGHT as i32).min(y + len as i32);
+
+    if start_y > end_y {
+        return;
+    }
+
+    for y in start_y..end_y {
+        set_pixel_impl(screen, x, y, stroke);
+    }
 }
 
 pub(crate) fn rect<T: Source<u8> + Sink<u8>>(
