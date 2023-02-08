@@ -745,10 +745,8 @@ pub(crate) fn hline<T: Source<u8> + Sink<u8>>(
     y: i32,
     len: u32
 ) {
-    // TODO: create performant version of hline
     if let Some(stroke) = remap_draw_color(DRAW_COLOR_1, draw_colors) {
-        let mut screen = Wasm4Screen { fb };
-        hline_stroke(&mut screen, stroke, x, y, len);
+        hline_stroke(&mut Wasm4Screen { fb }, stroke, x, y, len);
     }
 }
 
@@ -763,11 +761,29 @@ fn hline_stroke<T: Screen>(
         return;
     }
 
-    let start_x = x.max(0);
+    let mut start_x = x.max(0);
     let end_x = (len as i32 + x).min(T::WIDTH as i32);
 
     if start_x > end_x {
         return;
+    }
+
+    let fill_end = end_x - (end_x & 3);
+    let fill_start = fill_end.min((start_x + 3) & !3);
+
+    if fill_end - fill_start > 3 {
+        for x in start_x..fill_start {
+            set_pixel_impl(screen, x, y, stroke);
+        }
+
+        let from = ((T::WIDTH as i32 * y + fill_start) >> 2) as usize;
+        let to = ((T::WIDTH as i32 * y + fill_end) >> 2) as usize;
+        let byte_stroke = stroke * 0x55;
+
+        for idx in from..to {
+            screen.fb_mut().set_item_at(idx, byte_stroke);
+        }
+        start_x = fill_end;
     }
 
     for x in start_x..end_x {
