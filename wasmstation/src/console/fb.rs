@@ -329,8 +329,7 @@ pub(crate) fn blit_sub<S, T>(
             let sy = src_y + src_location.1;
 
             let draw_color_idx = get_sprite_pixel_draw_color(sprite, fmt, sx, sy, stride);
-            let (color, opaque) = remap_draw_color(draw_color_idx, draw_colors);
-            if opaque {
+            if let Some(color) = remap_draw_color(draw_color_idx, draw_colors) {
                 set_pixel_unclipped(target, tx, ty, color)
             }
         }
@@ -639,13 +638,12 @@ fn test_conv_1bpp_to_2bpp() {
     assert_eq!(0b01_01_01_01_00_00_00_00, conv_1bpp_to_2bpp(0b0000000011110000));
 }
 
-fn remap_draw_color(draw_color_idx: u8, draw_colors: u16) -> (u8, bool) {
+fn remap_draw_color(draw_color_idx: u8, draw_colors: u16) -> Option<u8> {
     let draw_color = (draw_colors as u32 >> (draw_color_idx * 4)) & 0b111;
     if draw_color == 0 {
-        (0, false)
+        None
     } else {
-        let palette_index = (draw_color - 1) as u8;
-        (palette_index, true)
+        Some((draw_color - 1) as u8)
     }
 }
 
@@ -658,11 +656,10 @@ fn remap_draw_colors(sprite_word: u32, sprite_word_pixels: i32, draw_colors: u16
         let shift = 2 * n;
         let draw_color_idx = (sprite_word >> shift) & 0b11;
 
-        let (palette_index, opaque) = remap_draw_color(draw_color_idx as u8, draw_colors);
-        if !opaque {
-            m |= 0b11 << shift;
-        } else {
+        if let Some(palette_index) = remap_draw_color(draw_color_idx as u8, draw_colors) {
             s |= (palette_index as u32) << shift
+        } else {
+            m |= 0b11 << shift;
         }
     }
 
@@ -749,8 +746,7 @@ pub(crate) fn hline<T: Source<u8> + Sink<u8>>(
     len: u32
 ) {
     // TODO: create performant version of hline
-    let (stroke, opaque) = remap_draw_color(DRAW_COLOR_1, draw_colors);
-    if opaque {
+    if let Some(stroke) = remap_draw_color(DRAW_COLOR_1, draw_colors) {
         let mut screen = Wasm4Screen { fb };
         hline_stroke(&mut screen, stroke, x, y, len);
     }
@@ -786,8 +782,7 @@ pub(crate) fn vline<T: Source<u8> + Sink<u8>>(
     y: i32,
     len: u32
 ) {
-    let (stroke, opaque) = remap_draw_color(DRAW_COLOR_1, draw_colors);
-    if opaque {
+    if let Some(stroke) = remap_draw_color(DRAW_COLOR_1, draw_colors) {
         vline_stroke(&mut Wasm4Screen { fb }, stroke, x, y, len);
     }
 }
@@ -804,7 +799,7 @@ fn vline_stroke<T: Screen>(
     }
 
     let start_y: i32 = y.max(0);
-    let end_y: i32 = (T::HEIGHT as i32).min(y + len as i32);
+    let end_y: i32 = (len as i32 + y).min(T::HEIGHT as i32);
 
     if start_y > end_y {
         return;
@@ -824,16 +819,14 @@ pub(crate) fn rect<T: Source<u8> + Sink<u8>>(
     height: u32
 ){
     let mut screen = Wasm4Screen { fb };
-    let (fill_stroke, fill_opaque) = remap_draw_color(DRAW_COLOR_1, draw_colors);
-    if fill_opaque {
+    if let Some(fill_stroke) = remap_draw_color(DRAW_COLOR_1, draw_colors) {
         let fx = x;
         let flen = width;
         for fy in y..y+(height as i32){
             hline_stroke(&mut screen, fill_stroke, fx, fy, flen)
         }
     }
-    let (line_stroke, line_opaque) = remap_draw_color(DRAW_COLOR_2, draw_colors);
-    if line_opaque {
+    if let Some(line_stroke) = remap_draw_color(DRAW_COLOR_2, draw_colors) {
         hline_stroke(&mut screen, line_stroke, x, y, width);
         hline_stroke(&mut screen, line_stroke, x, y+(height as i32)-1, width);
         vline_stroke(&mut screen, line_stroke, x, y, height);
@@ -879,8 +872,8 @@ fn oval_impl<T: Screen>(
     let mut dy = 4 * (1+b0) * a2;
     let mut err = dx + dy + b0 * a2;
 
-    let (fill_stroke, fill_opaque) = remap_draw_color(DRAW_COLOR_1, draw_colors);
-    let (line_stroke, line_opaque) = remap_draw_color(DRAW_COLOR_2, draw_colors);
+    let fill_opaque: Option<u8> = remap_draw_color(DRAW_COLOR_1, draw_colors);
+    let line_opaque: Option<u8> = remap_draw_color(DRAW_COLOR_2, draw_colors);
 
     // x1, x2 start on the left and right maxima of the horizontal axis
     let mut x1 = x;
@@ -895,7 +888,7 @@ fn oval_impl<T: Screen>(
     while x1 <= x2 {
 
         // ellipse outline with line color
-        if line_opaque {
+        if let Some(line_stroke) = line_opaque {
             set_pixel_unclipped_impl(screen, x1, y2, line_stroke);
             set_pixel_unclipped_impl(screen, x2, y2, line_stroke);
             set_pixel_unclipped_impl(screen, x1, y1, line_stroke);
@@ -906,7 +899,7 @@ fn oval_impl<T: Screen>(
 
         if e2 <= dy {
             // filled ellipse with fill color
-            if fill_opaque {
+            if let Some(fill_stroke) = fill_opaque {
                 let len = (x2-x1-1) as u32;
                 hline_stroke(screen, fill_stroke, x1+1, y2, len);
                 hline_stroke(screen, fill_stroke, x1+1, y1, len);
@@ -925,10 +918,10 @@ fn oval_impl<T: Screen>(
     }
 
     while y2 - y1 < height {
-        set_pixel_unclipped_impl(screen, x1-1, y1, line_stroke);
-        set_pixel_unclipped_impl(screen, x2+1, y1, line_stroke);
-        set_pixel_unclipped_impl(screen, x1-1, y2, line_stroke);
-        set_pixel_unclipped_impl(screen, x2+1, y2, line_stroke);
+        set_pixel_unclipped_impl(screen, x1-1, y1, line_opaque.unwrap_or(0));
+        set_pixel_unclipped_impl(screen, x2+1, y1, line_opaque.unwrap_or(0));
+        set_pixel_unclipped_impl(screen, x1-1, y2, line_opaque.unwrap_or(0));
+        set_pixel_unclipped_impl(screen, x2+1, y2, line_opaque.unwrap_or(0));
         y2 += 1;
         y1 -= 1;
     }
