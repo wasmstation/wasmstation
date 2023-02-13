@@ -638,6 +638,8 @@ fn test_conv_1bpp_to_2bpp() {
     assert_eq!(0b01_01_01_01_00_00_00_00, conv_1bpp_to_2bpp(0b0000000011110000));
 }
 
+/// Returns a Some<u8> palette address if the draw color at the index is opaque,
+/// and None if transparent.
 fn remap_draw_color(draw_color_idx: u8, draw_colors: u16) -> Option<u8> {
     let draw_color = (draw_colors as u32 >> (draw_color_idx * 4)) & 0b111;
     if draw_color == 0 {
