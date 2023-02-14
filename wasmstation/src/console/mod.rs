@@ -3,6 +3,8 @@
 mod audio;
 mod framebuffer;
 
+use core::cell::Cell;
+
 use audio::{AudioInterface, AudioState};
 pub use framebuffer::{
     blit_sub, clear, hline, line, oval, pixel_width_of_flags, rect, text, vline,
@@ -22,6 +24,8 @@ impl Console {
     pub fn create_api(&self) -> Api {
         Api {
             audio_api: self.audio_state.api().clone(),
+            save_cache: Cell::new([0; 1024]),
+            needs_write: Cell::new(false),
         }
     }
 
@@ -33,10 +37,21 @@ impl Console {
 #[derive(Clone)]
 pub struct Api {
     audio_api: AudioInterface,
+    pub save_cache: Cell<[u8; 1024]>,
+    pub needs_write: Cell<bool>,
 }
 
 impl Api {
     pub fn tone(&self, frequency: u32, duration: u32, volume: u32, flags: u32) {
         self.audio_api.tone(frequency, duration, volume, flags)
+    }
+
+    pub fn write_save(&self) -> Option<[u8; 1024]> {
+        if self.needs_write.get() {
+            self.needs_write.set(false);
+            return Some(self.save_cache.get());
+        } else {
+            return None;
+        }
     }
 }

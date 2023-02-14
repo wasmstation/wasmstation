@@ -1,5 +1,3 @@
-use std::cell::Cell;
-
 use wasmer::{
     imports, AsStoreRef, Engine, Function, FunctionEnv, FunctionEnvMut, Instance, Memory,
     MemoryType, MemoryView, Module, Store, TypedFunction, ValueType, WasmPtr, WasmSlice,
@@ -140,15 +138,13 @@ impl Backend for WasmerBackend {
     }
 
     fn set_save_cache(&mut self, data: [u8; 1024]) {
-        self.fn_env.as_mut(&mut self.store).save_cache.set(data);
+        self.fn_env.as_mut(&mut self.store).api.save_cache.set(data);
     }
 }
 
 struct WasmerRuntimeEnv {
     memory: Memory,
     api: console::Api,
-    pub save_cache: Cell<[u8; 1024]>,
-    pub needs_write: Cell<bool>,
 }
 
 impl WasmerRuntimeEnv {
@@ -171,18 +167,11 @@ impl WasmerRuntimeEnv {
         Ok(Self {
             memory,
             api,
-            save_cache: Cell::new([0; 1024]),
-            needs_write: Cell::new(false),
         })
     }
 
     pub fn write_save(&self) -> Option<[u8; 1024]> {
-        if self.needs_write.get() {
-            self.needs_write.set(false);
-            return Some(self.save_cache.get());
-        } else {
-            return None;
-        }
+        self.api.write_save()
     }
 }
 
@@ -353,7 +342,7 @@ fn diskr(env: FunctionEnvMut<WasmerRuntimeEnv>, dest: WasmPtr<u8>, size: u32) ->
     let ctx = Context::from_env(&env);
     let bytes_read = u32::min(size, 1024);
 
-    let mut src = env.data().save_cache.get().to_vec();
+    let mut src = env.data().api.save_cache.get().to_vec();
     src.resize(bytes_read as usize, 0);
 
     dest.slice(ctx.view(), bytes_read)
@@ -375,8 +364,8 @@ fn diskw(env: FunctionEnvMut<WasmerRuntimeEnv>, src: WasmPtr<u8>, size: u32) -> 
         .expect("get memory slice to vec");
     buf.resize(1024, 0);
 
-    env.data().save_cache.set(buf.try_into().unwrap());
-    env.data().needs_write.set(true);
+    env.data().api.save_cache.set(buf.try_into().unwrap());
+    env.data().api.needs_write.set(true);
 
     return bytes_written;
 }

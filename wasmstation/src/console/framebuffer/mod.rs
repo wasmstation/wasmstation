@@ -1,7 +1,7 @@
 // WASM-4 Framebuffer functions
 
 use crate::{wasm4::SCREEN_SIZE, Sink, Source};
-use std::{fmt::Write, mem::size_of};
+use core::{fmt::Write, mem::size_of};
 
 mod blit;
 mod line;
