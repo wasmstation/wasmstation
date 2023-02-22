@@ -8,7 +8,7 @@ fn main() {
     wasmstation::launch(
         WasmerBackend::precompiled(WASM_BYTES, &Console::new()).unwrap(),
         &env::current_dir().unwrap(),
-        3,
+        {window_scale},
     )
     .unwrap();
 }
