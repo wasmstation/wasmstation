@@ -25,5 +25,10 @@ pub fn default_draw_colors() -> [u8; 2] {
 
 /// Returns an empty WASM-4 framebuffer.
 pub fn default_framebuffer() -> [u8; FRAMEBUFFER_SIZE] {
-    [0u8; 6400]
+    (0..6400)
+        .into_iter()
+        .map(|_| 0)
+        .collect::<Vec<u8>>()
+        .try_into()
+        .expect("wrong framebuffer size")
 }
