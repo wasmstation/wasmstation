@@ -1,0 +1,16 @@
+[package]
+name = "{crate_name}"
+version = "0.1.0"
+edition = "2021"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "z"
+strip = true
+
+[build-dependencies]
+wasmer = "3.1"
+
+[dependencies]
+wasmstation = { git = "https://github.com/wasmstation/wasmstation" }
