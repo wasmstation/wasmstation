@@ -1,4 +1,4 @@
-// WASM-4 addresses and constants
+//! WASM-4 Addresses and Constants
 
 pub const PALETTE_ADDR: usize = 0x04;
 pub const DRAW_COLORS_ADDR: usize = 0x14;

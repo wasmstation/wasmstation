@@ -1,12 +1,11 @@
-use std::cell::Cell;
-
 use wasmer::{
     imports, AsStoreRef, Engine, Function, FunctionEnv, FunctionEnvMut, Instance, Memory,
     MemoryType, MemoryView, Module, Store, TypedFunction, ValueType, WasmPtr, WasmSlice,
 };
 
 use crate::{
-    console::{self, Console}, utils,
+    console::{self, pixel_width_of_flags, Console},
+    utils,
     wasm4::{self, DRAW_COLORS_ADDR, FRAMEBUFFER_ADDR, FRAMEBUFFER_SIZE},
     Backend, Sink, Source,
 };
@@ -19,7 +18,10 @@ pub struct WasmerBackend {
 
 impl WasmerBackend {
     pub fn new(wasm_bytes: &[u8], console: &Console) -> anyhow::Result<Self> {
-        Self::precompiled(&Module::new(&Store::default(), wasm_bytes)?.serialize()?, console)
+        Self::precompiled(
+            &Module::new(&Store::default(), wasm_bytes)?.serialize()?,
+            console,
+        )
     }
 
     pub fn precompiled(module_bytes: &[u8], console: &Console) -> anyhow::Result<Self> {
@@ -73,7 +75,7 @@ impl Backend for WasmerBackend {
             let slice = WasmPtr::<u8>::new(wasm4::FRAMEBUFFER_ADDR as u32)
                 .slice(&view, FRAMEBUFFER_SIZE as u32)
                 .unwrap();
-            console::fb::clear(&mut WasmSliceSinkSource { slice });
+            console::clear(&mut WasmSliceSinkSource { slice });
         }
 
         if let Ok(update) = self.instance.exports.get_function("update") {
@@ -136,15 +138,13 @@ impl Backend for WasmerBackend {
     }
 
     fn set_save_cache(&mut self, data: [u8; 1024]) {
-        self.fn_env.as_mut(&mut self.store).save_cache.set(data);
+        self.fn_env.as_mut(&mut self.store).api.save_cache.set(data);
     }
 }
 
 struct WasmerRuntimeEnv {
     memory: Memory,
     api: console::Api,
-    pub save_cache: Cell<[u8; 1024]>,
-    pub needs_write: Cell<bool>,
 }
 
 impl WasmerRuntimeEnv {
@@ -167,18 +167,11 @@ impl WasmerRuntimeEnv {
         Ok(Self {
             memory,
             api,
-            save_cache: Cell::new([0; 1024]),
-            needs_write: Cell::new(false),
         })
     }
 
     pub fn write_save(&self) -> Option<[u8; 1024]> {
-        if self.needs_write.get() {
-            self.needs_write.set(false);
-            return Some(self.save_cache.get());
-        } else {
-            return None;
-        }
+        self.api.write_save()
     }
 }
 
@@ -274,7 +267,7 @@ fn blit_sub(
     flags: u32,
 ) {
     let ctx = Context::from_env(&env);
-    let num_bits = stride * (height + src_y) * console::fb::pixel_width_of_flags(flags);
+    let num_bits = stride * (height + src_y) * pixel_width_of_flags(flags);
     let len = (num_bits + 7) / 8;
     let sprite_slice = sprite.slice(ctx.view(), len).unwrap();
 
@@ -282,7 +275,7 @@ fn blit_sub(
         slice: sprite_slice,
     };
 
-    console::fb::blit_sub(
+    console::blit_sub(
         &mut ctx.fb(),
         &src,
         x,
@@ -299,33 +292,33 @@ fn blit_sub(
 
 fn line(env: FunctionEnvMut<WasmerRuntimeEnv>, x1: i32, y1: i32, x2: i32, y2: i32) {
     let ctx = Context::from_env(&env);
-    console::fb::line(&mut ctx.fb(), ctx.draw_colors(), x1, y1, x2, y2);
+    console::line(&mut ctx.fb(), ctx.draw_colors(), x1, y1, x2, y2);
 }
 
 fn hline(env: FunctionEnvMut<WasmerRuntimeEnv>, x: i32, y: i32, len: u32) {
     let ctx = Context::from_env(&env);
-    console::fb::hline(&mut ctx.fb(), ctx.draw_colors(), x, y, len);
+    console::hline(&mut ctx.fb(), ctx.draw_colors(), x, y, len);
 }
 
 fn vline(env: FunctionEnvMut<WasmerRuntimeEnv>, x: i32, y: i32, len: u32) {
     let ctx = Context::from_env(&env);
-    console::fb::vline(&mut ctx.fb(), ctx.draw_colors(), x, y, len);
+    console::vline(&mut ctx.fb(), ctx.draw_colors(), x, y, len);
 }
 
 fn oval(env: FunctionEnvMut<WasmerRuntimeEnv>, x: i32, y: i32, width: u32, height: u32) {
     let ctx = Context::from_env(&env);
-    console::fb::oval(&mut ctx.fb(), ctx.draw_colors(), x, y, width, height);
+    console::oval(&mut ctx.fb(), ctx.draw_colors(), x, y, width, height);
 }
 fn rect(env: FunctionEnvMut<WasmerRuntimeEnv>, x: i32, y: i32, width: u32, height: u32) {
     let ctx = Context::from_env(&env);
-    console::fb::rect(&mut ctx.fb(), ctx.draw_colors(), x, y, width, height);
+    console::rect(&mut ctx.fb(), ctx.draw_colors(), x, y, width, height);
 }
 
 fn text(env: FunctionEnvMut<WasmerRuntimeEnv>, ptr: WasmPtr<u8>, x: i32, y: i32) {
     let ctx = Context::from_env(&env);
     let w4_string = ptr.read_until(ctx.view(), |b| *b == 0).unwrap();
 
-    console::fb::text(&mut ctx.fb(), &w4_string, x, y, ctx.draw_colors())
+    console::text(&mut ctx.fb(), &w4_string, x, y, ctx.draw_colors())
 }
 
 fn text_utf8(env: FunctionEnvMut<WasmerRuntimeEnv>, ptr: WasmPtr<u8>, length: u32, x: i32, y: i32) {
@@ -333,7 +326,7 @@ fn text_utf8(env: FunctionEnvMut<WasmerRuntimeEnv>, ptr: WasmPtr<u8>, length: u3
     let slice = ptr.slice(ctx.view(), length).unwrap();
     let w4_string = slice.read_to_vec().unwrap();
 
-    console::fb::text(&mut ctx.fb(), &w4_string, x, y, ctx.draw_colors())
+    console::text(&mut ctx.fb(), &w4_string, x, y, ctx.draw_colors())
 }
 
 fn text_utf16(
@@ -349,11 +342,10 @@ fn diskr(env: FunctionEnvMut<WasmerRuntimeEnv>, dest: WasmPtr<u8>, size: u32) ->
     let ctx = Context::from_env(&env);
     let bytes_read = u32::min(size, 1024);
 
-    let mut src = env.data().save_cache.get().to_vec();
+    let mut src = env.data().api.save_cache.get().to_vec();
     src.resize(bytes_read as usize, 0);
 
-    dest
-        .slice(ctx.view(), bytes_read)
+    dest.slice(ctx.view(), bytes_read)
         .expect("get memory slice")
         .write_slice(&src)
         .expect("write slice to memory");
@@ -372,8 +364,8 @@ fn diskw(env: FunctionEnvMut<WasmerRuntimeEnv>, src: WasmPtr<u8>, size: u32) -> 
         .expect("get memory slice to vec");
     buf.resize(1024, 0);
 
-    env.data().save_cache.set(buf.try_into().unwrap());
-    env.data().needs_write.set(true);
+    env.data().api.save_cache.set(buf.try_into().unwrap());
+    env.data().api.needs_write.set(true);
 
     return bytes_written;
 }
