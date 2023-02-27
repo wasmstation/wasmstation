@@ -80,7 +80,7 @@ pub fn hline<T: Source<u8> + Sink<u8>>(fb: &mut T, draw_colors: u16, x: i32, y: 
 }
 
 pub(crate) fn hline_impl<T: Screen>(screen: &mut T, stroke: u8, x: i32, y: i32, len: u32) {
-    if y < 0 || y > T::HEIGHT as i32 {
+    if y < 0 || y >= T::HEIGHT as i32 {
         return;
     }
 
@@ -135,5 +135,71 @@ pub(crate) fn vline_impl<T: Screen>(screen: &mut T, stroke: u8, x: i32, y: i32, 
 
     for y in start_y..end_y {
         set_pixel_impl(screen, x, y, stroke);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{hline_impl, line_impl, vline_impl};
+    use crate::console::framebuffer::{as_fb_vec, ArrayScreen};
+
+    #[test]
+    fn test_hline() {
+        let mut screen = ArrayScreen::<4, 8>::new();
+        let expected = ArrayScreen::new_with_fb_lines(&[
+            as_fb_vec(0b_00_11_11_11_11_11_11_00__u16),
+            as_fb_vec(0b_11_11_11_11_11_11_00_00__u16),
+        ]);
+
+        hline_impl(&mut screen, 3, 1, 0, 6);
+        hline_impl(&mut screen, 3, -1, 1, 7);
+
+        println!("{:?}", &screen);
+        assert_eq!(screen, expected);
+    }
+
+    #[test]
+    fn test_vline() {
+        let mut screen = ArrayScreen::<7, 4>::new();
+        let expected = ArrayScreen::new_with_fb_lines(&[
+            as_fb_vec(0b_00_00_00_00__u8),
+            as_fb_vec(0b_11_00_11_00__u8),
+            as_fb_vec(0b_11_00_11_00__u8),
+            as_fb_vec(0b_11_00_11_00__u8),
+            as_fb_vec(0b_00_00_11_00__u8),
+            as_fb_vec(0b_11_00_11_00__u8),
+            as_fb_vec(0b_00_00_11_00__u8),
+        ]);
+
+        vline_impl(&mut screen, 3, 2, 1, 6);
+        vline_impl(&mut screen, 3, 0, 1, 3);
+        vline_impl(&mut screen, 3, 0, 5, 1);
+
+        println!("{:?}", &screen);
+        assert_eq!(screen, expected);
+    }
+
+    #[test]
+    fn test_line() {
+        let mut screen = ArrayScreen::<18, 8>::new();
+        let expected = ArrayScreen::new_with_fb_lines(&[
+            as_fb_vec(0b_11_00_00_00_00_00_00_00__u16),
+            as_fb_vec(0b_00_11_00_00_00_00_11_00__u16),
+            as_fb_vec(0b_00_00_11_00_00_00_11_00__u16),
+            as_fb_vec(0b_00_00_00_11_00_00_11_00__u16),
+            as_fb_vec(0b_00_00_00_00_00_00_00_11__u16),
+            as_fb_vec(0b_00_11_00_00_00_00_00_11__u16),
+            as_fb_vec(0b_00_11_00_00_00_00_00_11__u16),
+            as_fb_vec(0b_11_00_00_00_11_11_11_00__u16),
+            as_fb_vec(0b_11_00_00_00_00_00_00_00__u16)
+        ]);
+
+        line_impl(&mut screen, 3, -1, -1, 3, 3);
+        line_impl(&mut screen, 3, 0, 8, 1, 5);
+        line_impl(&mut screen, 3, 6, 1, 7, 6);
+        line_impl(&mut screen, 3, 4, 7, 6, 7);
+
+        println!("{:?}", &screen);
+        assert_eq!(screen, expected);
     }
 }
