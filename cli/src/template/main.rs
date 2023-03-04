@@ -1,4 +1,4 @@
-use std::{env, PathBuf};
+use std::{env, path::PathBuf, str::FromStr};
 use wasmstation::{backend::WasmerBackend, console::Console};
 
 mod disk;
@@ -6,7 +6,7 @@ mod disk;
 const WASM_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/wasm.module"));
 
 fn main() {
-    let save_path = PathBuf::new("{crate_name}.disk");
+    let save_path = PathBuf::from_str("{crate_name}.disk").expect("create save file path");
     
     wasmstation::launch(
         WasmerBackend::precompiled(WASM_BYTES, &Console::new()).unwrap(),
