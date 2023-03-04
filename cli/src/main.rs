@@ -1,7 +1,10 @@
-use std::{env, ffi::OsStr, fs, path::PathBuf, str::FromStr};
+use std::{env, ffi::OsStr, fs, path::PathBuf, process, str::FromStr};
 
 use argh::FromArgs;
+use log::error;
 use wasmstation::{backend::WasmerBackend, console::Console};
+
+mod disk;
 
 #[derive(FromArgs)]
 #[argh(description = "Run wasm4 compatible games.")]
@@ -34,18 +37,38 @@ fn main() {
 struct Run {
     #[argh(positional)]
     path: PathBuf,
+
     /// default scale factor for the window
-    #[argh(option, short = 's', default = "3")]
+    #[argh(option, short = 'd', default = "3")]
     display_scale: u32,
+
+    /// path to the save file used by the game
+    #[argh(option, short = 's', from_str_fn(validate_save_path))]
+    save_path: Option<PathBuf>,
 }
 
 fn run(args: Run) {
-    let wasm_bytes = fs::read(&args.path).expect("failed to read game");
+    let wasm_bytes = match fs::read(&args.path) {
+        Ok(bytes) => bytes,
+        Err(err) => {
+            error!("Failed to read the game cart: {err}");
+            process::exit(1);
+        }
+    };
+
+    let save_path = args.save_path.unwrap_or(save_path_from_cart(&args.path));
+    let title = args
+        .path
+        .file_stem()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or("wasmstation".to_string());
 
     wasmstation::launch(
         WasmerBackend::new(&wasm_bytes, &Console::new()).unwrap(),
-        &args.path,
+        disk::write(&save_path),
+        disk::read(&save_path),
         args.display_scale,
+        &title,
     )
     .unwrap();
 }
@@ -57,8 +80,9 @@ struct Create {
     /// path leading to the game's cartridge file (e.g. /path/to/cart.wasm)
     #[argh(positional, from_str_fn(validate_wasm_path))]
     cart: PathBuf,
+
     /// default scale factor of the window
-    #[argh(option, short = 's', default = "3")]
+    #[argh(option, short = 'd', default = "3")]
     display_scale: u32,
 }
 
@@ -76,13 +100,19 @@ fn create(args: Create) {
 
     let cargo_toml = include_str!("template/Cargo.toml").replace("{crate_name}", &name);
     let build_rs = include_str!("template/build.rs").replace("{cart_name}", &name);
-    let main_rs =
-        include_str!("template/main.rs").replace("{window_scale}", &args.display_scale.to_string());
+    let main_rs = include_str!("template/main.rs")
+        .replace("{window_scale}", &args.display_scale.to_string())
+        .replace("{crate_name}", &name);
 
     fs::create_dir_all(&base_dir.join("src")).expect("create main directory");
     fs::write(base_dir.join("Cargo.toml"), cargo_toml).expect("create Cargo.toml");
     fs::write(base_dir.join("build.rs"), build_rs).expect("create build.rs");
     fs::write(base_dir.join("src").join("main.rs"), main_rs).expect("create main.rs");
+    fs::write(
+        base_dir.join("src").join("disk.rs"),
+        include_str!("disk.rs"),
+    )
+    .expect("create disk.rs");
     fs::copy(&args.cart, base_dir.join(&format!("{name}.wasm"))).expect("copy wasm cart");
 
     println!(
@@ -91,6 +121,7 @@ fn create(args: Create) {
     );
 }
 
+/// Verify that the user's `/path/to/cart.wasm` is a file with a .wasm extension.
 fn validate_wasm_path(path: &str) -> Result<PathBuf, String> {
     let path = PathBuf::from_str(path).map_err(|err| err.to_string())?;
 
@@ -103,4 +134,23 @@ fn validate_wasm_path(path: &str) -> Result<PathBuf, String> {
     }
 
     Ok(path)
+}
+
+/// Verify that the user's `/path/to/cart.disk` is a file.
+fn validate_save_path(path: &str) -> Result<PathBuf, String> {
+    let path = PathBuf::from_str(path).map_err(|err| err.to_string())?;
+
+    if path.file_name().is_none() {
+        return Err("must be a file".to_string());
+    }
+
+    Ok(path)
+}
+
+/// Generate a save path `/path/to/cart.disk` from `/path/to/cart.wasm`.
+fn save_path_from_cart(path: &PathBuf) -> PathBuf {
+    let mut path = path.clone();
+
+    path.set_extension("disk");
+    path
 }
