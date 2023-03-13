@@ -1,8 +1,6 @@
 use std::{env, path::PathBuf, str::FromStr};
 use wasmstation::{backend::WasmerBackend, console::Console, renderer::LaunchConfig};
 
-mod disk;
-
 const WASM_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/wasm.module"));
 
 fn main() {
