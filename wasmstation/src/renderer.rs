@@ -1,12 +1,13 @@
 //! Utilities for Rendering Games
 
 use std::{
+    path::PathBuf,
     thread,
     time::{Duration, Instant},
 };
 
 use anyhow::anyhow;
-use log::{debug, error};
+use log::{debug, error, warn};
 use palette::Srgb;
 use sdl2::{
     event::Event,
@@ -20,7 +21,7 @@ use sdl2::{
 };
 
 use crate::{
-    utils,
+    disk, utils,
     wasm4::{
         BUTTON_1, BUTTON_2, BUTTON_DOWN, BUTTON_LEFT, BUTTON_RIGHT, BUTTON_UP, FRAMEBUFFER_SIZE,
         MOUSE_LEFT, MOUSE_MIDDLE, MOUSE_RIGHT, SCREEN_SIZE,
@@ -34,16 +35,50 @@ const TARGET_MS_PER_FRAME: Duration = Duration::from_millis((1000.0 / TARGET_FPS
 const SCREEN_LENGTH: usize = (SCREEN_SIZE * SCREEN_SIZE) as usize;
 const TEXTURE_LENGTH: usize = SCREEN_LENGTH * 3;
 
+pub struct LaunchConfig {
+    pub disk_write: Box<dyn Fn([u8; 1024]) -> Result<(), String>>,
+    pub disk_read: Box<dyn Fn() -> Result<[u8; 1024], String>>,
+    pub display_scale: u32,
+    pub title: String,
+}
+
+impl Default for LaunchConfig {
+    fn default() -> Self {
+        Self {
+            disk_write: Box::new(|_| {
+                warn!("no target set for save file");
+                Ok(())
+            }),
+            disk_read: Box::new(|| {
+                warn!("no target set for save file");
+                Ok((0..1024)
+                    .into_iter()
+                    .map(|_| 0)
+                    .collect::<Vec<u8>>()
+                    .try_into()
+                    .unwrap())
+            }),
+            display_scale: 3,
+            title: "wasmstation".to_string(),
+        }
+    }
+}
+
+impl LaunchConfig {
+    pub fn from_savefile(savefile: PathBuf, display_scale: u32, title: &str) -> Self {
+        Self {
+            disk_write: disk::write(savefile.clone()),
+            disk_read: disk::read(savefile),
+            display_scale,
+            title: title.to_string(),
+        }
+    }
+}
+
 /// Launch a game in a SDL2 window.
-pub fn launch(
-    mut backend: impl Backend,
-    disk_write: impl Fn([u8; 1024]) -> Result<(), String>,
-    disk_read: impl Fn() -> Result<[u8; 1024], String>,
-    display_scale: u32,
-    title: &str,
-) -> anyhow::Result<()> {
+pub fn launch(mut backend: impl Backend, config: LaunchConfig) -> anyhow::Result<()> {
     // read from save cache on game start
-    match disk_read() {
+    match (config.disk_read)() {
         Ok(data) => backend.set_save_cache(data),
         Err(err) => error!("{err}"),
     }
@@ -53,9 +88,9 @@ pub fn launch(
         .video()
         .map_err(|x| anyhow!("{x}"))?
         .window(
-            &title,
-            SCREEN_SIZE * display_scale,
-            SCREEN_SIZE * display_scale,
+            &config.title,
+            SCREEN_SIZE * config.display_scale,
+            SCREEN_SIZE * config.display_scale,
         )
         .position_centered()
         .resizable()
@@ -108,7 +143,7 @@ pub fn launch(
 
         // write to save file on request from backend.
         if let Some(data) = backend.write_save_cache() {
-            if let Err(err) = disk_write(data) {
+            if let Err(err) = (config.disk_write)(data) {
                 error!("{err}");
             };
         }

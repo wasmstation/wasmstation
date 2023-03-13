@@ -2,9 +2,7 @@ use std::{env, ffi::OsStr, fs, path::PathBuf, process, str::FromStr};
 
 use argh::FromArgs;
 use log::error;
-use wasmstation::{backend::WasmerBackend, console::Console};
-
-mod disk;
+use wasmstation::{backend::WasmerBackend, console::Console, renderer::LaunchConfig};
 
 #[derive(FromArgs)]
 #[argh(description = "Run wasm4 compatible games.")]
@@ -65,10 +63,7 @@ fn run(args: Run) {
 
     wasmstation::launch(
         WasmerBackend::new(&wasm_bytes, &Console::new()).unwrap(),
-        disk::write(&save_path),
-        disk::read(&save_path),
-        args.display_scale,
-        &title,
+        LaunchConfig::from_savefile(save_path, args.display_scale, &title),
     )
     .unwrap();
 }
@@ -108,11 +103,6 @@ fn create(args: Create) {
     fs::write(base_dir.join("Cargo.toml"), cargo_toml).expect("create Cargo.toml");
     fs::write(base_dir.join("build.rs"), build_rs).expect("create build.rs");
     fs::write(base_dir.join("src").join("main.rs"), main_rs).expect("create main.rs");
-    fs::write(
-        base_dir.join("src").join("disk.rs"),
-        include_str!("disk.rs"),
-    )
-    .expect("create disk.rs");
     fs::copy(&args.cart, base_dir.join(&format!("{name}.wasm"))).expect("copy wasm cart");
 
     println!(

@@ -8,6 +8,7 @@ pub mod wasm4;
 pub mod backend;
 pub mod console;
 pub mod renderer;
+pub mod disk;
 
 pub use renderer::launch;
 

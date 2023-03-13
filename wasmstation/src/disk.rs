@@ -1,13 +1,13 @@
 use std::{fs, io::ErrorKind, path::PathBuf};
 
 /// A simple reusable closure for writing a game disk to a file
-pub fn write(save_path: &PathBuf) -> impl Fn([u8; 1024]) -> Result<(), String> + '_ {
-    move |data: [u8; 1024]| fs::write(save_path, data).map_err(|err| err.to_string())
+pub fn write(save_path: PathBuf) -> Box<dyn Fn([u8; 1024]) -> Result<(), String>> {
+    Box::new(move |data: [u8; 1024]| fs::write(&save_path, data).map_err(|err| err.to_string()))
 }
 
 /// A simple reusable closure for reading a game disk from a file.
-pub fn read(save_path: &PathBuf) -> impl Fn() -> Result<[u8; 1024], String> + '_ {
-    move || {
+pub fn read(save_path: PathBuf) -> Box<dyn Fn() -> Result<[u8; 1024], String>> {
+    Box::new(move || {
         // read bytes from disk and create new blank file if it doesn't exist.
         let mut bytes: Vec<u8> = match fs::read(&save_path) {
             Ok(bytes) => Ok(bytes),
@@ -23,5 +23,5 @@ pub fn read(save_path: &PathBuf) -> impl Fn() -> Result<[u8; 1024], String> + '_
         bytes
             .try_into()
             .map_err(|_| "failed to resize save file to 1024".to_string())
-    }
+    })
 }
