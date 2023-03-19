@@ -12,6 +12,7 @@ anyhow = "1.0"
 bytemuck = "1.12"
 num-traits = "0.2"
 byteorder = "1.4"
+dirs = { version = "2.0", package = "dirs-next" }
 
 # renderer
 sdl2 = "0.35"

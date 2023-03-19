@@ -1,13 +1,14 @@
 //! Utilities for Rendering Games
 
 use std::{
+    io,
     path::PathBuf,
     thread,
     time::{Duration, Instant},
 };
 
 use anyhow::anyhow;
-use log::{debug, error, warn};
+use log::{debug, error};
 use palette::Srgb;
 use sdl2::{
     event::Event,
@@ -21,7 +22,8 @@ use sdl2::{
 };
 
 use crate::{
-    disk, utils,
+    disk::{DebugDisk, DiskManager, UserwideDisk, Wasm4CompatibleDisk},
+    utils,
     wasm4::{
         BUTTON_1, BUTTON_2, BUTTON_DOWN, BUTTON_LEFT, BUTTON_RIGHT, BUTTON_UP, FRAMEBUFFER_SIZE,
         MOUSE_LEFT, MOUSE_MIDDLE, MOUSE_RIGHT, SCREEN_SIZE,
@@ -35,9 +37,9 @@ const TARGET_MS_PER_FRAME: Duration = Duration::from_millis((1000.0 / TARGET_FPS
 const SCREEN_LENGTH: usize = (SCREEN_SIZE * SCREEN_SIZE) as usize;
 const TEXTURE_LENGTH: usize = SCREEN_LENGTH * 3;
 
+/// Configuration for [`launch`].
 pub struct LaunchConfig {
-    pub disk_write: Box<dyn Fn([u8; 1024]) -> Result<(), String>>,
-    pub disk_read: Box<dyn Fn() -> Result<[u8; 1024], String>>,
+    pub disk_manager: Box<dyn DiskManager>,
     pub display_scale: u32,
     pub title: String,
 }
@@ -45,19 +47,7 @@ pub struct LaunchConfig {
 impl Default for LaunchConfig {
     fn default() -> Self {
         Self {
-            disk_write: Box::new(|_| {
-                warn!("no target set for save file");
-                Ok(())
-            }),
-            disk_read: Box::new(|| {
-                warn!("no target set for save file");
-                Ok((0..1024)
-                    .into_iter()
-                    .map(|_| 0)
-                    .collect::<Vec<u8>>()
-                    .try_into()
-                    .unwrap())
-            }),
+            disk_manager: Box::new(DebugDisk),
             display_scale: 3,
             title: "wasmstation".to_string(),
         }
@@ -65,22 +55,51 @@ impl Default for LaunchConfig {
 }
 
 impl LaunchConfig {
-    pub fn from_savefile(savefile: PathBuf, display_scale: u32, title: &str) -> Self {
+    /// Create a [`LaunchConfig`] from `/path/to/save`.
+    ///
+    /// The extension will automatically be changed to `.disk`.
+    pub fn from_path(cart: &PathBuf) -> Self {
         Self {
-            disk_write: disk::write(savefile.clone()),
-            disk_read: disk::read(savefile),
-            display_scale,
-            title: title.to_string(),
+            disk_manager: Box::new(Wasm4CompatibleDisk::new(cart)),
+            ..LaunchConfig::default()
         }
+    }
+
+    /// Create a [`LaunchConfig`] from a cart name and save it in a userwide application directory.
+    ///
+    /// |Platform | Location                                                                                         |
+    /// | ------- | ------------------------------------------------------------------------------------------------ |
+    /// | Linux   | `$XDG_DATA_HOME/wasmstation/{name}.disk` or `$HOME/.local/share/wasmstation/{name}.disk`         |
+    /// | macOS   | `$HOME/Library/Application Support/wasmstation/{name}.disk`                                      |
+    /// | Windows | `{FOLDERID_RoamingAppData}\wasmstation\{name}.disk`                                              |
+    pub fn from_name(name: &str) -> Result<Self, io::Error> {
+        Ok(Self {
+            disk_manager: Box::new(UserwideDisk::new(name)?),
+            ..LaunchConfig::default()
+        })
+    }
+
+    /// Read from the system save disk.
+    pub fn read(&self) -> Result<[u8; 1024], String> {
+        self.disk_manager.read()
+    }
+
+    /// Write to the system save disk.
+    pub fn write(&self, disk: [u8; 1024]) -> Result<(), String> {
+        self.disk_manager.write(disk)
     }
 }
 
 /// Launch a game in a SDL2 window.
-pub fn launch(mut backend: impl Backend, config: LaunchConfig) -> anyhow::Result<()> {
-    // read from save cache on game start
-    match (config.disk_read)() {
+///
+/// If `None` is passed for `config`, `LaunchConfig::default()` is used.
+pub fn launch(mut backend: impl Backend, config: Option<LaunchConfig>) -> anyhow::Result<()> {
+    let config = config.unwrap_or_default();
+
+    // read from save file on game start
+    match config.read() {
         Ok(data) => backend.set_save_cache(data),
-        Err(err) => error!("{err}"),
+        Err(err) => error!("failed to read save file: {err}"),
     }
 
     let sdl_context = sdl2::init().map_err(|s| anyhow!("{s}"))?;
@@ -143,8 +162,8 @@ pub fn launch(mut backend: impl Backend, config: LaunchConfig) -> anyhow::Result
 
         // write to save file on request from backend.
         if let Some(data) = backend.write_save_cache() {
-            if let Err(err) = (config.disk_write)(data) {
-                error!("{err}");
+            if let Err(err) = config.write(data) {
+                error!("Error writing game disk: {err}");
             };
         }
 
@@ -264,6 +283,10 @@ fn handle_input(
 
     match event {
         DesktopInputEvent::Key { down, keycode } => {
+            if keycode == Some(Keycode::Escape) {
+                return true;
+            }
+
             let mask: u8 = match keycode {
                 Some(Keycode::Left) => BUTTON_LEFT,
                 Some(Keycode::Right) => BUTTON_RIGHT,
