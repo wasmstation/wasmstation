@@ -39,7 +39,7 @@ const TEXTURE_LENGTH: usize = SCREEN_LENGTH * 3;
 
 /// Configuration for [`launch`].
 pub struct LaunchConfig {
-    pub disk_manager: Box<dyn DiskManager>,
+    pub disk: Box<dyn DiskManager>,
     pub display_scale: u32,
     pub title: String,
 }
@@ -47,7 +47,7 @@ pub struct LaunchConfig {
 impl Default for LaunchConfig {
     fn default() -> Self {
         Self {
-            disk_manager: Box::new(DebugDisk),
+            disk: Box::new(DebugDisk),
             display_scale: 3,
             title: "wasmstation".to_string(),
         }
@@ -60,7 +60,7 @@ impl LaunchConfig {
     /// The extension will automatically be changed to `.disk`.
     pub fn from_path(cart: &PathBuf) -> Self {
         Self {
-            disk_manager: Box::new(Wasm4CompatibleDisk::new(cart)),
+            disk: Box::new(Wasm4CompatibleDisk::new(cart)),
             ..LaunchConfig::default()
         }
     }
@@ -74,19 +74,9 @@ impl LaunchConfig {
     /// | Windows | `{FOLDERID_RoamingAppData}\wasmstation\{name}.disk`                                              |
     pub fn from_name(name: &str) -> Result<Self, io::Error> {
         Ok(Self {
-            disk_manager: Box::new(UserwideDisk::new(name)?),
+            disk: Box::new(UserwideDisk::new(name)?),
             ..LaunchConfig::default()
         })
-    }
-
-    /// Read from the system save disk.
-    pub fn read(&self) -> Result<[u8; 1024], String> {
-        self.disk_manager.read()
-    }
-
-    /// Write to the system save disk.
-    pub fn write(&self, disk: [u8; 1024]) -> Result<(), String> {
-        self.disk_manager.write(disk)
     }
 }
 
@@ -97,7 +87,7 @@ pub fn launch(mut backend: impl Backend, config: Option<LaunchConfig>) -> anyhow
     let config = config.unwrap_or_default();
 
     // read from save file on game start
-    match config.read() {
+    match config.disk.read() {
         Ok(data) => backend.set_save_cache(data),
         Err(err) => error!("failed to read save file: {err}"),
     }
@@ -162,7 +152,7 @@ pub fn launch(mut backend: impl Backend, config: Option<LaunchConfig>) -> anyhow
 
         // write to save file on request from backend.
         if let Some(data) = backend.write_save_cache() {
-            if let Err(err) = config.write(data) {
+            if let Err(err) = config.disk.write(data) {
                 error!("Error writing game disk: {err}");
             };
         }

@@ -61,11 +61,22 @@ fn run(args: Run) {
         .map(|s| s.to_string_lossy().to_string())
         .unwrap_or("wasmstation".to_string());
 
-    wasmstation::launch(
-        WasmerBackend::new(&wasm_bytes, &Console::new()).unwrap(),
-        LaunchConfig::from_savefile(save_path, args.display_scale, &title),
-    )
-    .unwrap();
+    let mut config = LaunchConfig::from_path(&save_path);
+    config.display_scale = args.display_scale;
+    config.title = title;
+
+    let backend = match WasmerBackend::new(&wasm_bytes, &Console::new()) {
+        Ok(backend) => backend,
+        Err(err) => {
+            error!("Failed to create WasmerBackend: {err}");
+            process::exit(1);
+        }
+    };
+
+    if let Err(err) = wasmstation::launch(backend, Some(config)) {
+        error!("Failed to run desktop renderer: {err}");
+        process::exit(1);
+    }
 }
 
 /// Create a Rust project for wrapping a WASM-4 game into a native executable in the current directory.
