@@ -4,7 +4,7 @@ A work-in-progress runtime for [WASM-4](https://github.com/aduros/wasm4).
 
 
 ## Short Term Goals
-* [ ] Implement all WASM-4 functions
+* [X] Implement all WASM-4 functions
   - [X] `blit`
   - [X] `blit_sub`
   - [X] `line`
@@ -16,9 +16,9 @@ A work-in-progress runtime for [WASM-4](https://github.com/aduros/wasm4).
   - [X] `tone` - sound slightly off
   - [X] `diskr`
   - [X] `diskw`
-  - [ ] `traceUtf8`
-  - [ ] `traceUtf16`
-  - [ ] `tracef`
+  - [X] `traceUtf8`
+  - [X] `traceUtf16`
+  - [X] `tracef`
 * [X] Run W4 games (carts) on desktop platforms
 * [X] Embed wasmstation into standalone game executables
 * [ ] Offer support for different renderers (wgpu, sdl2)
