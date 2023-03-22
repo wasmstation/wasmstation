@@ -336,6 +336,14 @@ fn text_utf16(
     x: i32,
     y: i32,
 ) {
+    let ctx = Context::from_env(&env);
+    let slice = ptr.slice(ctx.view(), length).unwrap();
+    let w4_string_utf16 = slice.read_to_vec().unwrap();
+
+    let w4_string: Vec<u8> =
+        String::from_utf16_lossy(bytemuck::cast_slice(&w4_string_utf16)).into_bytes();
+
+    console::text(&mut ctx.fb(), &w4_string, x, y, ctx.draw_colors())
 }
 
 fn diskr(env: FunctionEnvMut<WasmerRuntimeEnv>, dest: WasmPtr<u8>, size: u32) -> u32 {
