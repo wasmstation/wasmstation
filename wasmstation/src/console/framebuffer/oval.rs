@@ -47,13 +47,15 @@ pub(crate) fn oval_impl<T: Screen>(
     let mut east = x + width - 1;
     let mut south = north - b1;
 
-    let mut dx = 4 * (1 - a) * b * b;
-    let mut dy = 4 * (b1 + 1) * a * a;
+    let b2 = b * b;
+    let a2 = a * a;
 
-    let mut err = dx + dy + b1 * a * a;
+    let mut dx = 4 * (1 - a) * b2;
+    let mut dy = 4 * (b1 + 1) * a2;
+    let mut err = dx + dy + b1 * a2;
 
-    a *= 8 * a;
-    b1 = 8 * b * b;
+    a = 8 * a2;
+    b1 = 8 * b2;
 
     while west <= east {
         set_pixel_unclipped_impl(screen, east, north, stroke);
@@ -64,7 +66,7 @@ pub(crate) fn oval_impl<T: Screen>(
         let start = west + 1;
 
         if dc0 != 0 && (east - start) > 0 {
-            let len = (east - west - 1).max(0) as u32;
+            let len = (east - west - 1) as u32;
 
             hline_impl(screen, fill, start, north, len);
             hline_impl(screen, fill, start, south, len);
