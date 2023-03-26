@@ -1,9 +1,6 @@
 use crate::{Sink, Source};
 
-use super::{
-    hline_impl, remap_draw_color, set_pixel_unclipped_impl, Screen, Wasm4Screen, DRAW_COLOR_1,
-    DRAW_COLOR_2,
-};
+use super::{hline_impl, set_pixel_unclipped_impl, Screen, Wasm4Screen};
 
 /// Draw an oval (circle).
 pub fn oval<T: Sink<u8> + Source<u8>>(
@@ -31,69 +28,73 @@ pub(crate) fn oval_impl<T: Screen>(
     let width = width as i32;
     let height = height as i32;
 
-    // name variables like in the Wikipedia article.
-    let a = width - 1;
+    let dc0 = draw_colors & 0xf;
+    let dc1 = (draw_colors >> 4) & 0xf;
+
+    if dc1 == 0xf {
+        return;
+    }
+
+    let stroke = ((dc1 - 1) & 0x3) as u8;
+    let fill = ((dc0 - 1) & 0x3) as u8;
+
+    let mut a = width - 1;
     let b = height - 1;
+    let mut b1 = b % 2;
 
-    let b0 = b % 2;
+    let mut north = y + height / 2;
+    let mut west = x;
+    let mut east = x + width - 1;
+    let mut south = north - b1;
 
-    let a2 = a * a;
-    let b2 = b * b;
-    let mut dx = 4 * (1 - a) * b2;
-    let mut dy = 4 * (1 + b0) * a2;
-    let mut err = dx + dy + b0 * a2;
+    let mut dx = 4 * (1 - a) * b * b;
+    let mut dy = 4 * (b1 + 1) * a * a;
 
-    let fill_opaque: Option<u8> = remap_draw_color(DRAW_COLOR_1, draw_colors);
-    let line_opaque: Option<u8> = remap_draw_color(DRAW_COLOR_2, draw_colors);
+    let mut err = dx + dy + b1 * a * a;
 
-    // x1, x2 start on the left and right maxima of the horizontal axis
-    let mut x1 = x;
-    let mut x2 = x + width - 1;
-    // y1, y2 start in the very center, 1px off in case of odd heights
-    let mut y2 = y + height / 2;
-    let mut y1 = y2 - b0;
+    a *= 8 * a;
+    b1 = 8 * b * b;
 
-    let dx_inc = 8 * a2;
-    let dy_inc = 8 * b2;
+    while west <= east {
+        set_pixel_unclipped_impl(screen, east, north, stroke);
+        set_pixel_unclipped_impl(screen, west, north, stroke);
+        set_pixel_unclipped_impl(screen, west, south, stroke);
+        set_pixel_unclipped_impl(screen, east, south, stroke);
 
-    while x1 <= x2 {
-        // ellipse outline with line color
-        if let Some(line_stroke) = line_opaque {
-            set_pixel_unclipped_impl(screen, x1, y2, line_stroke);
-            set_pixel_unclipped_impl(screen, x2, y2, line_stroke);
-            set_pixel_unclipped_impl(screen, x1, y1, line_stroke);
-            set_pixel_unclipped_impl(screen, x2, y1, line_stroke);
+        let start = west + 1;
+
+        if dc0 != 0 && (east - start) > 0 {
+            let len = (east - west - 1).max(0) as u32;
+
+            hline_impl(screen, fill, start, north, len);
+            hline_impl(screen, fill, start, south, len);
         }
 
-        let e2 = 2 * err;
+        let err2 = 2 * err;
 
-        if e2 <= dy {
-            // filled ellipse with fill color
-            if let Some(fill_stroke) = fill_opaque {
-                let len = (x2 - x1 - 1) as u32;
-                hline_impl(screen, fill_stroke, x1 + 1, y2, len);
-                hline_impl(screen, fill_stroke, x1 + 1, y1, len);
-            }
-            y2 += 1;
-            y1 -= 1;
-            dy += dy_inc;
+        if err2 <= dy {
+            north += 1;
+            south -= 1;
+            dy += a;
             err += dy;
         }
-        if e2 >= dx || e2 > dy {
-            x1 += 1;
-            x2 -= 1;
-            dx += dx_inc;
+
+        if err2 >= dx || err2 > dy {
+            west += 1;
+            east -= 1;
+            dx += b1;
             err += dx;
         }
     }
 
-    while y2 - y1 < height {
-        set_pixel_unclipped_impl(screen, x1 - 1, y1, line_opaque.unwrap_or(0));
-        set_pixel_unclipped_impl(screen, x2 + 1, y1, line_opaque.unwrap_or(0));
-        set_pixel_unclipped_impl(screen, x1 - 1, y2, line_opaque.unwrap_or(0));
-        set_pixel_unclipped_impl(screen, x2 + 1, y2, line_opaque.unwrap_or(0));
-        y2 += 1;
-        y1 -= 1;
+    while north - south < height {
+        set_pixel_unclipped_impl(screen, west - 1, north, stroke);
+        set_pixel_unclipped_impl(screen, east + 1, north, stroke);
+        north += 1;
+
+        set_pixel_unclipped_impl(screen, west - 1, south, stroke);
+        set_pixel_unclipped_impl(screen, east + 1, south, stroke);
+        south -= 1;
     }
 }
 
