@@ -124,11 +124,23 @@ const CHARSET: [u8; 1792] = [
 ///
 /// - The string may contain new-line (`\\n`) characters.
 /// - The font is 8x8 pixels per character.
-pub fn text<T: Source<u8> + Sink<u8>>(fb: &mut T, text: &[u8], x: i32, y: i32, draw_colors: u16) {
+pub fn text<T: Source<u8> + Sink<u8>, B: Copy + Into<usize>>(
+    fb: &mut T,
+    text: &[B],
+    x: i32,
+    y: i32,
+    draw_colors: u16,
+) {
     let (mut tx, mut ty) = (x, y);
 
     for c in text {
+        let c: usize = (*c).into();
+
         match c {
+            0 => {
+                // null-terminator
+                break;
+            }
             10 => {
                 // line feed
                 ty += 8;

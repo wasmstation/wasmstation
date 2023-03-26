@@ -6,9 +6,7 @@ mod framebuffer;
 use core::cell::Cell;
 
 use audio::{AudioInterface, AudioState};
-pub use framebuffer::{
-    blit_sub, clear, hline, line, oval, pixel_width_of_flags, rect, text, vline,
-};
+pub use framebuffer::*;
 
 pub struct Console {
     audio_state: AudioState,
