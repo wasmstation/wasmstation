@@ -1,26 +1,37 @@
-use log::error;
-
 use crate::Source;
 
 /// Parse a formatted string.
 ///
 /// Arguments:
-/// - `fmt: &str`: the format string (with '%' characters).
-/// - `args: &[u8]`: bytes containing argument values after the argument pointer.
-/// - `mem: impl Source<u8>`: a reference to the cart's memory. This is used to access inserted strings.
-pub fn tracef<T: Source<u8>>(fmt: &str, args: &[u8], mem: &T) -> String {
-    let mut arg_idx = 0;
-    let mut fmt = fmt.chars();
+///  - `fmt: u32`: a pointer to the format string (**null terminated ASCII**).
+///  - `args: u32`: a pointer to the data arguments.
+///  - `mem: &impl Source<u8>`: a reference to the game's memory.
+pub fn tracef<T: Source<u8>>(fmt: u32, args: u32, mem: &T) -> String {
+    let mut fmt = fmt as usize;
+    let mut args = args as usize;
 
+    let mut fmt_str = String::new();
+
+    while let Some(b) = mem.item_at(fmt) {
+        if b == 0 {
+            break;
+        }
+
+        fmt_str.push(char::from_u32(b.into()).unwrap_or('!'));
+
+        fmt += 1;
+    }
+
+    let mut fmt_chars = fmt_str.chars();
     let mut output = String::new();
 
-    while let Some(ch) = fmt.next() {
-        // break on null terminated string.
+    while let Some(ch) = fmt_chars.next() {
+        // break for null terminated string.
         if ch == '\0' {
             break;
         }
 
-        // characters other than formatting character '%' are just added.
+        // characters other than the formatting character '%' are just added.
         if ch != '%' {
             output.push(ch);
             continue;
@@ -28,49 +39,37 @@ pub fn tracef<T: Source<u8>>(fmt: &str, args: &[u8], mem: &T) -> String {
 
         // if we've hit the formatting character ('%') then move to the next
         // char and check to see what it is and replace it with the value it references.
-        if let Some(ch) = fmt.next() {
+        if let Some(ch) = fmt_chars.next() {
             match ch {
                 'c' => {
-                    let val: u32 = match args
-                        .get(arg_idx..(arg_idx + 4))
-                        .map(|s| s.try_into().unwrap())
-                    {
-                        Some(bytes) => u32::from_le_bytes(bytes),
-                        None => {
-                            error!("failed to read char at {arg_idx}");
-                            break;
-                        }
-                    };
+                    let val = u32::from_le_bytes([
+                        mem.item_at(args).unwrap_or(0),
+                        mem.item_at(args + 1).unwrap_or(0),
+                        mem.item_at(args + 2).unwrap_or(0),
+                        mem.item_at(args + 3).unwrap_or(0),
+                    ]);
 
-                    output.push(char::from_u32(val).unwrap_or('!'));
-                    arg_idx += 4;
+                    output.push(val.try_into().unwrap_or('!'));
+                    args += 4;
                 }
                 'd' | 'x' => {
-                    let val: i32 = match args
-                        .get(arg_idx..(arg_idx + 4))
-                        .map(|s| s.try_into().unwrap())
-                    {
-                        Some(bytes) => i32::from_le_bytes(bytes),
-                        None => {
-                            error!("failed to read i32 at {arg_idx}");
-                            break;
-                        }
-                    };
+                    let val = i32::from_le_bytes([
+                        mem.item_at(args).unwrap_or(0),
+                        mem.item_at(args + 1).unwrap_or(0),
+                        mem.item_at(args + 2).unwrap_or(0),
+                        mem.item_at(args + 3).unwrap_or(0),
+                    ]);
 
                     output.push_str(&val.to_string());
-                    arg_idx += 4;
+                    args += 4;
                 }
                 's' => {
-                    let mut str_ptr: u32 = match args
-                        .get(arg_idx..(arg_idx + 4))
-                        .map(|s| s.try_into().unwrap())
-                    {
-                        Some(bytes) => u32::from_le_bytes(bytes),
-                        None => {
-                            error!("failed to read ptr at {arg_idx}");
-                            break;
-                        }
-                    };
+                    let mut str_ptr = u32::from_le_bytes([
+                        mem.item_at(args).unwrap_or(0),
+                        mem.item_at(args + 1).unwrap_or(0),
+                        mem.item_at(args + 2).unwrap_or(0),
+                        mem.item_at(args + 3).unwrap_or(0),
+                    ]);
 
                     let mut nstr = String::new();
 
@@ -84,22 +83,22 @@ pub fn tracef<T: Source<u8>>(fmt: &str, args: &[u8], mem: &T) -> String {
                     }
 
                     output.push_str(&nstr);
-                    arg_idx += 4;
+                    args += 4;
                 }
                 'f' => {
-                    let val: f64 = match args
-                        .get(arg_idx..(arg_idx + 8))
-                        .map(|s| s.try_into().unwrap())
-                    {
-                        Some(bytes) => f64::from_le_bytes(bytes),
-                        None => {
-                            error!("failed to read f64 at {arg_idx}");
-                            break;
-                        }
-                    };
+                    let val = f64::from_le_bytes([
+                        mem.item_at(args).unwrap_or(0),
+                        mem.item_at(args + 1).unwrap_or(0),
+                        mem.item_at(args + 2).unwrap_or(0),
+                        mem.item_at(args + 3).unwrap_or(0),
+                        mem.item_at(args + 4).unwrap_or(0),
+                        mem.item_at(args + 5).unwrap_or(0),
+                        mem.item_at(args + 6).unwrap_or(0),
+                        mem.item_at(args + 7).unwrap_or(0),
+                    ]);
 
                     output.push_str(&val.to_string());
-                    arg_idx += 8;
+                    args += 8;
                 }
                 _ => output.push(ch),
             }
@@ -117,7 +116,15 @@ mod tests {
     fn tracef_float() {
         assert_eq!(
             "0.473;0.856",
-            tracef("%f;%f", bytemuck::cast_slice(&[0.473, 0.856]), &[])
+            tracef(
+                16,
+                0,
+                &[
+                    &bytemuck::cast_slice(&[0.473_f64, 0.856_f64]),
+                    "%f;%f\0".as_bytes(),
+                ]
+                .concat()
+            )
         );
     }
 
@@ -125,18 +132,30 @@ mod tests {
     fn tracef_int() {
         assert_eq!(
             "4082;8088",
-            tracef("%d;%d", bytemuck::cast_slice(&[4082i32, 8088i32]), &[])
+            tracef(
+                0,
+                6,
+                &[
+                    "%d;%d\0".as_bytes(),
+                    &bytemuck::cast_slice(&[4082_i32, 8088_i32])
+                ]
+                .concat()
+            )
         )
     }
 
     #[test]
     fn tracef_str() {
         assert_eq!(
-            "here's your str: 'inner string!'",
+            "here's your str: 'the inner string!'",
             tracef(
-                "here's your str: '%s'",
-                bytemuck::cast_slice(&[11u32]),
-                &"before the inner string!".as_bytes().to_vec()
+                21,
+                43,
+                &[
+                    "the inner string!\0---here's your str: '%s'\0".as_bytes(),
+                    &bytemuck::cast_slice(&[0_u32])
+                ]
+                .concat()
             )
         )
     }
@@ -146,9 +165,13 @@ mod tests {
         assert_eq!(
             "exclamation mark: !; ampersand: &",
             tracef(
-                "exclamation mark: %c; ampersand: %c",
-                bytemuck::cast_slice::<char, u8>(&['!', '&']),
-                &[]
+                0,
+                36,
+                &[
+                    "exclamation mark: %c; ampersand: %c\0".as_bytes(),
+                    &bytemuck::cast_slice(&['!', '&'])
+                ]
+                .concat(),
             )
         )
     }

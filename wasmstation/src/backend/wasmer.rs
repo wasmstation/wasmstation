@@ -273,17 +273,7 @@ fn trace(env: FunctionEnvMut<WasmerRuntimeEnv>, ptr: WasmPtr<u8>) {
 fn tracef(env: FunctionEnvMut<WasmerRuntimeEnv>, fmt: WasmPtr<u8>, args: WasmPtr<u8>) {
     let ctx = Context::from_env(&env);
 
-    let fmt_slice = fmt.read_utf8_string_with_nul(ctx.view()).unwrap_or_default();
-
-    // 1024 bytes should be more than enough to contain a single
-    // tracef() call's chars, f64s, f32s, and string pointers.
-    let mut arg_slice = (0..=512).map(|_| 0).collect::<Vec<u8>>();
-
-    ctx.view()
-        .read(args.offset().into(), &mut arg_slice)
-        .unwrap_or_default();
-
-    println!("{}", console::tracef(&fmt_slice, &arg_slice, ctx.view()));
+    println!("{}", console::tracef(fmt.offset(), args.offset(), ctx.view()));
 }
 
 fn trace_utf8(env: FunctionEnvMut<WasmerRuntimeEnv>, ptr: WasmPtr<u8>, len: u32) {
