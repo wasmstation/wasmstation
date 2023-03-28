@@ -52,7 +52,25 @@ where
 {
     /// Read memory at the specified offset, relative to the start
     /// of the memory subregion the [`Source<T>`] covers.
-    fn item_at(&self, offset: usize) -> T;
+    fn item_at(&self, offset: usize) -> Option<T>;
+}
+
+impl<T> Source<T> for Vec<T>
+where
+    T: Copy,
+{
+    fn item_at(&self, offset: usize) -> Option<T> {
+        self.get(offset).map(|b| *b)
+    }
+}
+
+impl<const N: usize, T> Source<T> for [T; N]
+where
+    T: Copy,
+{
+    fn item_at(&self, offset: usize) -> Option<T> {
+        self.get(offset).map(|b| *b)
+    }
 }
 
 /// Common trait for writing to game memory.
@@ -95,23 +113,5 @@ where
 
     fn fill(&mut self, item: T) {
         <[T]>::fill(self, item)
-    }
-}
-
-impl<T> Source<T> for Vec<T>
-where
-    T: Copy,
-{
-    fn item_at(&self, offset: usize) -> T {
-        self[offset]
-    }
-}
-
-impl<const N: usize, T> Source<T> for [T; N]
-where
-    T: Copy,
-{
-    fn item_at(&self, offset: usize) -> T {
-        self[offset]
     }
 }

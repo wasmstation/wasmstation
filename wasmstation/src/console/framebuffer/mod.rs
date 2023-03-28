@@ -114,7 +114,7 @@ pub(crate) fn set_pixel_impl<S: Screen>(s: &mut S, x: i32, y: i32, color: u8) {
     let shift = (x & 0x3) << 1;
     let mask = 0x3 << shift;
 
-    let fb_byte = s.fb().item_at(idx);
+    let fb_byte = s.fb().item_at(idx).unwrap();
     s.fb_mut()
         .set_item_at(idx, (color << shift) | (fb_byte & !mask));
 }

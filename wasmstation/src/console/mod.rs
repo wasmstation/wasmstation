@@ -2,11 +2,13 @@
 
 mod audio;
 mod framebuffer;
+mod trace;
 
 use core::cell::Cell;
 
 use audio::{AudioInterface, AudioState};
 pub use framebuffer::*;
+pub use trace::tracef;
 
 pub struct Console {
     audio_state: AudioState,
