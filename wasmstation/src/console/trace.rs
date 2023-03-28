@@ -3,13 +3,10 @@ use crate::Source;
 /// Parse a formatted string.
 ///
 /// Arguments:
-///  - `fmt: u32`: a pointer to the format string (**null terminated ASCII**).
-///  - `args: u32`: a pointer to the data arguments.
+///  - `fmt: usize`: a pointer to the format string (**null terminated ASCII**).
+///  - `args: usize`: a pointer to the data arguments.
 ///  - `mem: &impl Source<u8>`: a reference to the game's memory.
-pub fn tracef<T: Source<u8>>(fmt: u32, args: u32, mem: &T) -> String {
-    let mut fmt = fmt as usize;
-    let mut args = args as usize;
-
+pub fn tracef<T: Source<u8>>(mut fmt: usize, mut args: usize, mem: &T) -> String {
     let mut fmt_str = String::new();
 
     while let Some(b) = mem.item_at(fmt) {
@@ -42,34 +39,28 @@ pub fn tracef<T: Source<u8>>(fmt: u32, args: u32, mem: &T) -> String {
         if let Some(ch) = fmt_chars.next() {
             match ch {
                 'c' => {
-                    let val = u32::from_le_bytes([
-                        mem.item_at(args).unwrap_or(0),
-                        mem.item_at(args + 1).unwrap_or(0),
-                        mem.item_at(args + 2).unwrap_or(0),
-                        mem.item_at(args + 3).unwrap_or(0),
-                    ]);
+                    let val = match mem.items_at(args) {
+                        Some(val) => u32::from_le_bytes(val),
+                        None => continue,
+                    };
 
                     output.push(val.try_into().unwrap_or('!'));
                     args += 4;
                 }
                 'd' | 'x' => {
-                    let val = i32::from_le_bytes([
-                        mem.item_at(args).unwrap_or(0),
-                        mem.item_at(args + 1).unwrap_or(0),
-                        mem.item_at(args + 2).unwrap_or(0),
-                        mem.item_at(args + 3).unwrap_or(0),
-                    ]);
+                    let val = match mem.items_at(args) {
+                        Some(bytes) => i32::from_le_bytes(bytes),
+                        None => continue,
+                    };
 
                     output.push_str(&val.to_string());
                     args += 4;
                 }
                 's' => {
-                    let mut str_ptr = u32::from_le_bytes([
-                        mem.item_at(args).unwrap_or(0),
-                        mem.item_at(args + 1).unwrap_or(0),
-                        mem.item_at(args + 2).unwrap_or(0),
-                        mem.item_at(args + 3).unwrap_or(0),
-                    ]);
+                    let mut str_ptr = match mem.items_at(args) {
+                        Some(val) => u32::from_le_bytes(val),
+                        None => continue,
+                    };
 
                     let mut nstr = String::new();
 
@@ -86,16 +77,10 @@ pub fn tracef<T: Source<u8>>(fmt: u32, args: u32, mem: &T) -> String {
                     args += 4;
                 }
                 'f' => {
-                    let val = f64::from_le_bytes([
-                        mem.item_at(args).unwrap_or(0),
-                        mem.item_at(args + 1).unwrap_or(0),
-                        mem.item_at(args + 2).unwrap_or(0),
-                        mem.item_at(args + 3).unwrap_or(0),
-                        mem.item_at(args + 4).unwrap_or(0),
-                        mem.item_at(args + 5).unwrap_or(0),
-                        mem.item_at(args + 6).unwrap_or(0),
-                        mem.item_at(args + 7).unwrap_or(0),
-                    ]);
+                    let val = match mem.items_at(args) {
+                        Some(val) => f64::from_le_bytes(val),
+                        None => continue,
+                    };
 
                     output.push_str(&val.to_string());
                     args += 8;

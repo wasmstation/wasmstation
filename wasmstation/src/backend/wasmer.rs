@@ -212,6 +212,19 @@ impl<'a> Source<u8> for MemoryView<'a> {
             Err(_) => None,
         }
     }
+
+    fn items_at<const L: usize>(&self, offset: usize) -> Option<[u8; L]> {
+        let mut items = [0; L];
+
+        for i in 0..L {
+            match self.read_u8((offset + i) as u64) {
+                Ok(b) => items[i] = b,
+                Err(_) => return None,
+            }
+        }
+
+        Some(items)
+    }
 }
 
 struct WasmSliceSinkSource<'a, T>
@@ -230,6 +243,23 @@ where
             Ok(b) => Some(b),
             Err(_) => None,
         }
+    }
+
+    fn items_at<const L: usize>(&self, offset: usize) -> Option<[T; L]> {
+        (0..L)
+            .filter_map(|i| {
+                self.slice
+                    .index((offset + i) as u64)
+                    .read()
+                    .map(|x| Some(x))
+                    .unwrap_or(None)
+            })
+            .collect::<Vec<T>>()
+            // TODO: remove hot allocation of Vec<T>
+            // WasmSliceSinkSource::items_at isn't being used right now so this isn't high priority.
+            .try_into()
+            .map(|i| Some(i))
+            .unwrap_or(None)
     }
 }
 
@@ -273,7 +303,10 @@ fn trace(env: FunctionEnvMut<WasmerRuntimeEnv>, ptr: WasmPtr<u8>) {
 fn tracef(env: FunctionEnvMut<WasmerRuntimeEnv>, fmt: WasmPtr<u8>, args: WasmPtr<u8>) {
     let ctx = Context::from_env(&env);
 
-    println!("{}", console::tracef(fmt.offset(), args.offset(), ctx.view()));
+    println!(
+        "{}",
+        console::tracef(fmt.offset() as usize, args.offset() as usize, ctx.view())
+    );
 }
 
 fn trace_utf8(env: FunctionEnvMut<WasmerRuntimeEnv>, ptr: WasmPtr<u8>, len: u32) {
