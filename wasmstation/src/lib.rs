@@ -52,7 +52,32 @@ where
 {
     /// Read memory at the specified offset, relative to the start
     /// of the memory subregion the [`Source<T>`] covers.
-    fn item_at(&self, offset: usize) -> T;
+    fn item_at(&self, offset: usize) -> Option<T>;
+
+    /// Like [`items_at`](Source::items_at), but reads multiple values.
+    fn items_at<const L: usize>(&self, offset: usize) -> Option<[T; L]>;
+}
+
+impl<T: Copy> Source<T> for Vec<T> {
+    fn item_at(&self, offset: usize) -> Option<T> {
+        self.get(offset).map(|b| *b)
+    }
+
+    fn items_at<const L: usize>(&self, offset: usize) -> Option<[T; L]> {
+        self.get(offset..(offset + L))
+            .map(|s| s.try_into().unwrap())
+    }
+}
+
+impl<const N: usize, T: Copy> Source<T> for [T; N] {
+    fn item_at(&self, offset: usize) -> Option<T> {
+        self.get(offset).map(|b| *b)
+    }
+
+    fn items_at<const L: usize>(&self, offset: usize) -> Option<[T; L]> {
+        self.get(offset..(offset + L))
+            .map(|s| s.try_into().unwrap())
+    }
 }
 
 /// Common trait for writing to game memory.
@@ -95,23 +120,5 @@ where
 
     fn fill(&mut self, item: T) {
         <[T]>::fill(self, item)
-    }
-}
-
-impl<T> Source<T> for Vec<T>
-where
-    T: Copy,
-{
-    fn item_at(&self, offset: usize) -> T {
-        self[offset]
-    }
-}
-
-impl<const N: usize, T> Source<T> for [T; N]
-where
-    T: Copy,
-{
-    fn item_at(&self, offset: usize) -> T {
-        self[offset]
     }
 }

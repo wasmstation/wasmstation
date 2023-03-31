@@ -168,7 +168,7 @@ pub fn blit_sub_multipixel<S, T>(
             // if there's room in pixbuf, get next sprite byte
             if pixbuf_len < 8 && sprite_pixels_left > 0 {
                 // load next u8 from sprite line
-                let sprite_byte = sprite.item_at(sprite_idx);
+                let sprite_byte = sprite.item_at(sprite_idx).unwrap();
                 sprite_idx += 1;
 
                 let sprite_word;
@@ -211,7 +211,7 @@ pub fn blit_sub_multipixel<S, T>(
             pixbuf_len -= 8;
 
             // apply src_byte to target byte in frame buffer
-            let mut tgt_byte = target.item_at(n as usize);
+            let mut tgt_byte = target.item_at(n as usize).unwrap();
             tgt_byte &= mask_byte;
             tgt_byte |= src_byte;
             target.set_item_at(n as usize, tgt_byte)
@@ -232,12 +232,12 @@ fn get_sprite_pixel_draw_color<T: Source<u8>>(
     let pixel_index = width * y + x;
     match fmt {
         PixelFormat::Blit1BPP => {
-            let mut byte = sprite.item_at((pixel_index >> 3) as usize);
+            let mut byte = sprite.item_at((pixel_index >> 3) as usize).unwrap();
             byte = byte >> (7 - (pixel_index & 0x07));
             byte & 0x01
         }
         PixelFormat::Blit2BPP => {
-            let mut byte = sprite.item_at((pixel_index >> 2) as usize);
+            let mut byte = sprite.item_at((pixel_index >> 2) as usize).unwrap();
             byte = byte >> (6 - ((pixel_index & 0x03) << 1));
             byte & 0x03
         }

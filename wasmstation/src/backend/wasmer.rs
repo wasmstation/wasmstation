@@ -205,6 +205,28 @@ impl<'a> Context<'a> {
     }
 }
 
+impl<'a> Source<u8> for MemoryView<'a> {
+    fn item_at(&self, offset: usize) -> Option<u8> {
+        match self.read_u8(offset as u64) {
+            Ok(b) => Some(b),
+            Err(_) => None,
+        }
+    }
+
+    fn items_at<const L: usize>(&self, offset: usize) -> Option<[u8; L]> {
+        let mut items = [0; L];
+
+        for i in 0..L {
+            match self.read_u8((offset + i) as u64) {
+                Ok(b) => items[i] = b,
+                Err(_) => return None,
+            }
+        }
+
+        Some(items)
+    }
+}
+
 struct WasmSliceSinkSource<'a, T>
 where
     T: ValueType + Copy,
@@ -216,8 +238,28 @@ impl<'a, T> Source<T> for WasmSliceSinkSource<'a, T>
 where
     T: ValueType + Copy,
 {
-    fn item_at(&self, offset: usize) -> T {
-        self.slice.index(offset as u64).read().unwrap()
+    fn item_at(&self, offset: usize) -> Option<T> {
+        match self.slice.index(offset as u64).read() {
+            Ok(b) => Some(b),
+            Err(_) => None,
+        }
+    }
+
+    fn items_at<const L: usize>(&self, offset: usize) -> Option<[T; L]> {
+        (0..L)
+            .filter_map(|i| {
+                self.slice
+                    .index((offset + i) as u64)
+                    .read()
+                    .map(|x| Some(x))
+                    .unwrap_or(None)
+            })
+            .collect::<Vec<T>>()
+            // TODO: remove hot allocation of Vec<T>
+            // WasmSliceSinkSource::items_at isn't being used right now so this isn't high priority.
+            .try_into()
+            .map(|i| Some(i))
+            .unwrap_or(None)
     }
 }
 
@@ -261,131 +303,10 @@ fn trace(env: FunctionEnvMut<WasmerRuntimeEnv>, ptr: WasmPtr<u8>) {
 fn tracef(env: FunctionEnvMut<WasmerRuntimeEnv>, fmt: WasmPtr<u8>, args: WasmPtr<u8>) {
     let ctx = Context::from_env(&env);
 
-    let mut fmt_offset = fmt.offset();
-    let mut arg_offset = args.offset();
-
-    let mut output = String::new();
-
-    while let Ok(ch) = ctx.view().read_u8(fmt_offset as u64) {
-        fmt_offset += 1;
-
-        // null-terminated string
-        if ch == 0 {
-            break;
-        }
-
-        // character other than formatting character '%' is just added.
-        if ch != 37 {
-            output.push(char::from_u32(ch as u32).unwrap_or('!'));
-            continue;
-        }
-
-        // if we've hit the formatting character ('%') then move to the next
-        // char and check to see what it is. Then replace it.
-        if let Ok(ch) = ctx.view().read_u8(fmt_offset as u64) {
-            match ch {
-                // 'c' - character
-                99 => {
-                    let mut val: [u8; 4] = [0; 4];
-
-                    match WasmPtr::<u8>::new(arg_offset).slice(ctx.view(), 4) {
-                        Ok(slice) => match slice.read_slice(&mut val) {
-                            Ok(_) => (),
-                            Err(err) => {
-                                error!("failed to read char WasmSlice to slice");
-                                continue;
-                            }
-                        },
-                        Err(err) => {
-                            error!("failed to read WasmSlice from arg_offset");
-                            continue;
-                        }
-                    }
-
-                    output.push(char::from_u32(bytemuck::cast(val)).unwrap_or('!'));
-                    arg_offset += 4;
-                }
-                // 'd'/'x' - integer/hex
-                100 | 120 => {
-                    let mut val: [u8; 4] = [0; 4];
-
-                    match WasmPtr::<u8>::new(arg_offset).slice(ctx.view(), 4) {
-                        Ok(slice) => match slice.read_slice(&mut val) {
-                            Ok(_) => (),
-                            Err(err) => {
-                                error!("failed to read int WasmSlice");
-                                continue;
-                            }
-                        },
-                        Err(err) => {
-                            error!("failed to read WasmSlice from arg_offset");
-                            continue;
-                        }
-                    }
-
-                    output.push_str(&i32::from_le_bytes(val).to_string());
-                    arg_offset += 4;
-                }
-                // 's' - null terminated string
-                115 => {
-                    let mut ptr_bytes: [u8; 4] = [0; 4];
-
-                    match WasmPtr::<u8>::new(arg_offset).slice(ctx.view(), 4) {
-                        Ok(slice) => match slice.read_slice(&mut ptr_bytes) {
-                            Ok(_) => (),
-                            Err(err) => {
-                                error!("failed to read str WasmSlice");
-                                continue;
-                            }
-                        },
-                        Err(err) => {
-                            error!("failed to read WasmSlice from arg_offset");
-                            continue;
-                        }
-                    }
-
-                    let str = match WasmPtr::<u8>::new(bytemuck::cast(ptr_bytes))
-                        .read_utf8_string_with_nul(ctx.view())
-                    {
-                        Ok(str) => str,
-                        Err(err) => {
-                            error!("failed to read null terminated string");
-                            continue;
-                        }
-                    };
-
-                    output.push_str(&str);
-                    arg_offset += 4;
-                }
-                // 'f' - float
-                102 => {
-                    let mut val: [u8; 8] = [0; 8];
-
-                    match WasmPtr::<u8>::new(arg_offset).slice(ctx.view(), 8) {
-                        Ok(slice) => match slice.read_slice(&mut val) {
-                            Ok(_) => (),
-                            Err(err) => {
-                                error!("failed to read float WasmSlice");
-                                continue;
-                            }
-                        },
-                        Err(err) => {
-                            error!("failed to read WasmSlice from arg_offset");
-                            continue;
-                        }
-                    }
-
-                    output.push_str(&f64::from_le_bytes(val).to_string());
-                    arg_offset += 8;
-                }
-                _ => output.push(char::from_u32(ch as u32).unwrap_or('!')),
-            }
-
-            fmt_offset += 1;
-        }
-    }
-
-    println!("{output}");
+    println!(
+        "{}",
+        console::tracef(fmt.offset() as usize, args.offset() as usize, ctx.view())
+    );
 }
 
 fn trace_utf8(env: FunctionEnvMut<WasmerRuntimeEnv>, ptr: WasmPtr<u8>, len: u32) {
