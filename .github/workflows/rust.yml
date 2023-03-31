@@ -18,6 +18,7 @@ jobs:
     - name: Cache
       uses: actions/cache@v2.1.8
       with:
+        key: ${{ runner.os }}-wasmstation
         path: target/ Cargo.lock
 
     - uses: actions/checkout@v3
