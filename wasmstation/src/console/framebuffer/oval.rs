@@ -35,8 +35,8 @@ pub(crate) fn oval_impl<T: Screen>(
         return;
     }
 
-    let stroke = ((dc1 - 1) & 0x3) as u8;
-    let fill = ((dc0 - 1) & 0x3) as u8;
+    let stroke = ((dc1.overflowing_sub(1).0) & 0x3) as u8;
+    let fill = (dc0.overflowing_sub(1).0 & 0x3) as u8;
 
     let mut a = width - 1;
     let b = height - 1;
@@ -109,6 +109,7 @@ mod tests {
     fn test_oval_small_circular() {
         // 8x5 pixels, with 4 pix/byte, that's 2 bytes/row, 10 bytes in total
         let mut screen = ArrayScreen::<10, 8>::new();
+        oval_impl(&mut screen, 0x40, 0, 0, 5, 5);
 
         let expected = ArrayScreen::new_with_fb_lines(&[
             as_fb_vec(0b_00_11_11_11_00_00_00_00__u16),
@@ -118,8 +119,6 @@ mod tests {
             as_fb_vec(0b_00_11_11_11_00_00_00_00__u16),
         ]);
 
-        oval_impl(&mut screen, 0x0040, 0, 0, 5, 5);
-        println!("{:?}", &screen);
         assert_eq!(screen, expected);
     }
 
@@ -127,15 +126,14 @@ mod tests {
     fn test_oval_slim_horizontal() {
         // 8x3 pixels, with 4 pix/byte, that's 2 bytes/row, 6 bytes in total
         let mut screen = ArrayScreen::<6, 8>::new();
+        oval_impl(&mut screen, 0x40, 0, 0, 8, 3);
 
         let expected = ArrayScreen::new_with_fb_lines(&[
-            as_fb_vec(0b_00_00_00_11_11_00_00_00__u16),
-            as_fb_vec(0b_11_11_11_11_11_11_11_11__u16),
-            as_fb_vec(0b_00_00_00_11_11_00_00_00__u16),
+            as_fb_vec(0b_00_00_11_11_11_11_00_00__u16),
+            as_fb_vec(0b_11_11_00_00_00_00_11_11__u16),
+            as_fb_vec(0b_00_00_11_11_11_11_00_00__u16),
         ]);
 
-        oval_impl(&mut screen, 0x0040, 0, 0, 8, 3);
-        println!("{:?}", &screen);
         assert_eq!(screen, expected);
     }
 }
