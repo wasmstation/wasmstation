@@ -14,5 +14,5 @@ wasmer = "3.1"
 
 [dependencies]
 wasmstation_desktop = { git = "https://github.com/wasmstation/wasmstation", package = "wasmstation-desktop" }
-wasmsation_wasmer = { git = "https://github.com/wasmstation/wasmstation", package = "wasmstation-desktop" }
-wasmsation_core = { git = "https://github.com/wasmstation/wasmstation", package = "wasmstation-core" }
+wasmstation_wasmer = { git = "https://github.com/wasmstation/wasmstation", package = "wasmstation-wasmer" }
+wasmstation_core = { git = "https://github.com/wasmstation/wasmstation", package = "wasmstation-core" }
