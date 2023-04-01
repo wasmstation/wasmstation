@@ -1,8 +1,8 @@
 use std::{env, ffi::OsStr, fs, path::PathBuf, str::FromStr};
 
 use argh::FromArgs;
-use wasmstation_wasmer::WasmerBackend;
 use wasmstation_core::Console;
+use wasmstation_wasmer::WasmerBackend;
 
 #[derive(FromArgs)]
 #[argh(description = "Run wasm4 compatible games.")]

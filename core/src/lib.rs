@@ -2,16 +2,16 @@
 
 use core::cell::Cell;
 
-pub mod utils;
-pub mod wasm4;
+mod audio;
 pub mod framebuffer;
 pub mod trace;
-mod audio;
+pub mod utils;
+pub mod wasm4;
 
 use audio::{AudioInterface, AudioState};
 
 #[doc(inline)]
-pub use framebuffer::{text, line, hline, vline, oval, rect, blit_sub};
+pub use framebuffer::{blit_sub, hline, line, oval, rect, text, vline};
 #[doc(inline)]
 pub use trace::tracef;
 
@@ -176,4 +176,3 @@ impl Api {
         }
     }
 }
-

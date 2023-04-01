@@ -26,7 +26,7 @@ impl PixelFormat {
 }
 
 /// Copy a subregion within a larger sprite atlas to the framebuffer.
-/// 
+///
 /// Same as `blit`, but with three additional parameters.
 #[allow(clippy::too_many_arguments)]
 pub fn blit_sub<S, T>(

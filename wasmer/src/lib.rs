@@ -5,10 +5,10 @@ use wasmer::{
 };
 
 use wasmstation_core::{
-    framebuffer::{pixel_width_of_flags, self},
-    utils,
+    framebuffer::{self, pixel_width_of_flags},
+    trace, utils,
     wasm4::{self, DRAW_COLORS_ADDR, FRAMEBUFFER_ADDR, FRAMEBUFFER_SIZE},
-    Backend, Console, Sink, Source, Api, trace,
+    Api, Backend, Console, Sink, Source,
 };
 
 /// A game backend for `.wasm` carts.

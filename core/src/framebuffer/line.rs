@@ -1,5 +1,5 @@
-use core::mem; 
 use crate::{wasm4::FRAMEBUFFER_SIZE, Sink, Source};
+use core::mem;
 
 use super::{
     remap_draw_color, set_pixel_impl, set_pixel_unclipped_impl, Screen, Wasm4Screen, DRAW_COLOR_1,
