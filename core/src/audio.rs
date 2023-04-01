@@ -268,7 +268,6 @@ struct AudioChannelState {
 #[derive(Default)]
 struct AudioChannel {
     state: AudioChannelState,
-    _start_frame: FrameCount,
     samples_rendered: i32,
     current_config: ToneConfiguration,
     pending_config: Option<ToneConfiguration>,
@@ -309,7 +308,6 @@ impl AudioChannel {
         }
 
         // render sample
-        let _gen = &mut self.generator;
         let current_output = self.generator.render_sample(&mut self.state);
 
         self.samples_rendered += 1;

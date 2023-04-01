@@ -6,8 +6,9 @@ use super::{
 };
 
 /// Draw a line between two points.
-// see <https://github.com/aduros/wasm4/blob/main/runtimes/native/src/framebuffer.c>
-// who in turn took it from <https://github.com/nesbox/TIC-80/blob/master/src/core/draw.c>
+///
+/// See <https://github.com/aduros/wasm4/blob/main/runtimes/native/src/framebuffer.c>,
+/// who in turn took it from <https://github.com/nesbox/TIC-80/blob/master/src/core/draw.c>
 pub fn line<T: Source<u8> + Sink<u8>>(
     fb: &mut T,
     draw_colors: u16,
@@ -68,6 +69,8 @@ pub(crate) fn line_impl<T: Screen>(
 }
 
 /// Draw a horizontal line.
+///
+/// Specifically, between `(x, y)` and `(x + len - 1, y)`.
 pub fn hline<T: Source<u8> + Sink<u8>>(fb: &mut T, draw_colors: u16, x: i32, y: i32, len: u32) {
     if let Some(stroke) = remap_draw_color(DRAW_COLOR_1, draw_colors) {
         hline_impl(&mut Wasm4Screen { fb }, stroke, x, y, len);
