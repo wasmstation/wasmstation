@@ -1,19 +1,21 @@
-#![doc = include_str!("../../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
-#![allow(unused_variables, dead_code)]
 
+use core::cell::Cell;
+
+mod audio;
+pub mod framebuffer;
+pub mod trace;
 pub mod utils;
 pub mod wasm4;
 
-pub mod backend;
-pub mod console;
-pub mod renderer;
+use audio::{AudioInterface, AudioState};
 
-pub use renderer::launch;
+#[doc(inline)]
+pub use framebuffer::{blit_sub, hline, line, oval, rect, text, vline};
+#[doc(inline)]
+pub use trace::tracef;
 
-type FrameCount = u32;
-
-/// Common trait for webassembly backends.
+/// Common trait for WebAssembly backends.
 pub trait Backend {
     /// Call the cart's `update()` function.
     /// See [Callbacks](https://wasm4.org/docs/reference/functions#callbacks)
@@ -60,7 +62,7 @@ where
 
 impl<T: Copy> Source<T> for Vec<T> {
     fn item_at(&self, offset: usize) -> Option<T> {
-        self.get(offset).map(|b| *b)
+        self.get(offset).copied()
     }
 
     fn items_at<const L: usize>(&self, offset: usize) -> Option<[T; L]> {
@@ -71,7 +73,7 @@ impl<T: Copy> Source<T> for Vec<T> {
 
 impl<const N: usize, T: Copy> Source<T> for [T; N] {
     fn item_at(&self, offset: usize) -> Option<T> {
-        self.get(offset).map(|b| *b)
+        self.get(offset).copied()
     }
 
     fn items_at<const L: usize>(&self, offset: usize) -> Option<[T; L]> {
@@ -120,5 +122,57 @@ where
 
     fn fill(&mut self, item: T) {
         <[T]>::fill(self, item)
+    }
+}
+
+pub struct Console {
+    audio_state: AudioState,
+}
+
+impl Console {
+    pub fn new() -> Self {
+        Self {
+            audio_state: AudioState::new(),
+        }
+    }
+
+    pub fn create_api(&self) -> Api {
+        Api {
+            audio_api: self.audio_state.api().clone(),
+            save_cache: Cell::new([0; 1024]),
+            needs_write: Cell::new(false),
+        }
+    }
+
+    pub fn update(&self) {
+        self.audio_state.api().update()
+    }
+}
+
+impl Default for Console {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[derive(Clone)]
+pub struct Api {
+    audio_api: AudioInterface,
+    pub save_cache: Cell<[u8; 1024]>,
+    pub needs_write: Cell<bool>,
+}
+
+impl Api {
+    pub fn tone(&self, frequency: u32, duration: u32, volume: u32, flags: u32) {
+        self.audio_api.tone(frequency, duration, volume, flags)
+    }
+
+    pub fn write_save(&self) -> Option<[u8; 1024]> {
+        if self.needs_write.get() {
+            self.needs_write.set(false);
+            Some(self.save_cache.get())
+        } else {
+            None
+        }
     }
 }

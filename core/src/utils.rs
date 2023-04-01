@@ -1,4 +1,4 @@
-//! Various Utilities for WASM-4
+//! Various utility functions for WASM-4.
 
 use byteorder::{LittleEndian, WriteBytesExt};
 
@@ -26,7 +26,6 @@ pub fn default_draw_colors() -> [u8; 2] {
 /// Returns an empty WASM-4 framebuffer.
 pub fn default_framebuffer() -> [u8; FRAMEBUFFER_SIZE] {
     (0..6400)
-        .into_iter()
         .map(|_| 0)
         .collect::<Vec<u8>>()
         .try_into()

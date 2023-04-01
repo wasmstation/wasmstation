@@ -2,7 +2,7 @@ use crate::{Sink, Source};
 
 use super::{hline_impl, remap_draw_color, vline_impl, Wasm4Screen, DRAW_COLOR_1, DRAW_COLOR_2};
 
-/// Draws a rectangle.
+/// Draw a rectangle.
 pub fn rect<T: Source<u8> + Sink<u8>>(
     fb: &mut T,
     draw_colors: u16,

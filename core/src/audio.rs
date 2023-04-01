@@ -1,4 +1,3 @@
-use crate::wasm4;
 use cpal::{
     traits::{DeviceTrait, HostTrait},
     OutputCallbackInfo, Stream,
@@ -7,10 +6,7 @@ use log::warn;
 use num_traits::*;
 use std::sync::mpsc;
 
-use crate::{
-    wasm4::{TONE_PAN_LEFT, TONE_PAN_RIGHT},
-    FrameCount,
-};
+use crate::wasm4::{self, TONE_PAN_LEFT, TONE_PAN_RIGHT};
 
 const TARGET_FPS: u32 = 60;
 const MAX_VOLUME: u16 = 100;
@@ -21,6 +17,7 @@ pub(crate) struct AudioInterface {
 }
 
 type Sample = i32;
+type FrameCount = u32;
 
 pub(crate) struct AudioState {
     output: Option<CpalOutput>,
@@ -64,13 +61,13 @@ impl AudioState {
         let supported_config = device.default_output_config()?;
         let config = supported_config.config();
         audio_processor.set_sample_rate(config.sample_rate.0 as i32);
-        let data_callback = move |data: &mut [f32], info: &OutputCallbackInfo| {
+        let data_callback = move |data: &mut [f32], _: &OutputCallbackInfo| {
             audio_processor.render_audio(config.channels, data)
         };
         let error_callback = move |err| warn!("{}", err);
         let stream = device.build_output_stream(&config, data_callback, error_callback)?;
 
-        Ok(CpalOutput { stream })
+        Ok(CpalOutput { _stream: stream })
     }
 }
 
@@ -98,7 +95,7 @@ impl AudioInterface {
 }
 
 struct CpalOutput {
-    stream: Stream,
+    _stream: Stream,
 }
 
 #[derive(Debug)]
@@ -218,8 +215,10 @@ impl AudioCommandPoller for mpsc::Receiver<AudioCommand> {
     }
 }
 
+#[derive(Default)]
 #[allow(clippy::enum_variant_names)] // there are no proper names I could come up with, so the variants are called like the type :)
 enum Mode {
+    #[default]
     Mode1_12,
     Mode2_25,
     Mode3_50,
@@ -238,13 +237,9 @@ impl Mode {
     }
 }
 
-impl Default for Mode {
-    fn default() -> Self {
-        Mode::Mode1_12
-    }
-}
-
+#[derive(Default)]
 enum Pan {
+    #[default]
     Center,
     Left,
     Right,
@@ -257,12 +252,6 @@ impl Pan {
             TONE_PAN_RIGHT => Pan::Right,
             _ => Pan::Center,
         }
-    }
-}
-
-impl Default for Pan {
-    fn default() -> Self {
-        Pan::Center
     }
 }
 
@@ -279,8 +268,6 @@ struct AudioChannelState {
 #[derive(Default)]
 struct AudioChannel {
     state: AudioChannelState,
-
-    start_frame: FrameCount,
     samples_rendered: i32,
     current_config: ToneConfiguration,
     pending_config: Option<ToneConfiguration>,
@@ -321,7 +308,6 @@ impl AudioChannel {
         }
 
         // render sample
-        let gen = &mut self.generator;
         let current_output = self.generator.render_sample(&mut self.state);
 
         self.samples_rendered += 1;

@@ -1,7 +1,8 @@
 use std::{env, ffi::OsStr, fs, path::PathBuf, str::FromStr};
 
 use argh::FromArgs;
-use wasmstation::{backend::WasmerBackend, console::Console};
+use wasmstation_core::Console;
+use wasmstation_wasmer::WasmerBackend;
 
 #[derive(FromArgs)]
 #[argh(description = "Run wasm4 compatible games.")]
@@ -42,7 +43,7 @@ struct Run {
 fn run(args: Run) {
     let wasm_bytes = fs::read(&args.path).expect("failed to read game");
 
-    wasmstation::launch(
+    wasmstation_desktop::launch(
         WasmerBackend::new(&wasm_bytes, &Console::new()).unwrap(),
         &args.path,
         args.display_scale,
@@ -79,11 +80,11 @@ fn create(args: Create) {
     let main_rs =
         include_str!("template/main.rs").replace("{window_scale}", &args.display_scale.to_string());
 
-    fs::create_dir_all(&base_dir.join("src")).expect("create main directory");
+    fs::create_dir_all(base_dir.join("src")).expect("create main directory");
     fs::write(base_dir.join("Cargo.toml"), cargo_toml).expect("create Cargo.toml");
     fs::write(base_dir.join("build.rs"), build_rs).expect("create build.rs");
     fs::write(base_dir.join("src").join("main.rs"), main_rs).expect("create main.rs");
-    fs::copy(&args.cart, base_dir.join(&format!("{name}.wasm"))).expect("copy wasm cart");
+    fs::copy(&args.cart, base_dir.join(format!("{name}.wasm"))).expect("copy wasm cart");
 
     println!(
         "Created your wasmstation project at {}\n\nBuild the cart by running:\n    $ cd {name}\n    $ cargo build --release",
@@ -94,7 +95,7 @@ fn create(args: Create) {
 fn validate_wasm_path(path: &str) -> Result<PathBuf, String> {
     let path = PathBuf::from_str(path).map_err(|err| err.to_string())?;
 
-    if path.file_name() == None {
+    if path.file_name().is_none() {
         return Err("must be a file".to_string());
     }
 

@@ -1,13 +1,16 @@
 [package]
 name = "wasmstation-cli"
 version = "0.1.0"
-edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
 
 [dependencies]
+wasmstation-desktop = { path = "../desktop/" }
+wasmstation-wasmer = { path = "../wasmer/" }
+wasmstation-core = { path = "../core/" }
+
 argh = "0.1"
-wasmstation = { path = "../wasmstation" }
 pretty_env_logger = "0.4"
 
 [[bin]]

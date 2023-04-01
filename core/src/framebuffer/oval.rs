@@ -3,6 +3,9 @@ use crate::{Sink, Source};
 use super::{hline_impl, set_pixel_unclipped_impl, Screen, Wasm4Screen};
 
 /// Draw an oval (circle).
+///
+/// An axis parallel ellipse centered around `x` and `y` with given `width` and
+/// `height`. The algorithm aligns with what is implemented in W4's framebuffer.c
 pub fn oval<T: Sink<u8> + Source<u8>>(
     fb: &mut T,
     draw_colors: u16,
@@ -15,8 +18,6 @@ pub fn oval<T: Sink<u8> + Source<u8>>(
     oval_impl(&mut screen, draw_colors, x, y, width, height)
 }
 
-/// Draw axis parallel ellipse centered around `x` and `y` with given `width` and
-/// `height`. The algorithm aligns with what is implemented in W4's framebuffer.c
 pub(crate) fn oval_impl<T: Screen>(
     screen: &mut T,
     draw_colors: u16,
@@ -35,7 +36,7 @@ pub(crate) fn oval_impl<T: Screen>(
         return;
     }
 
-    let stroke = ((dc1.overflowing_sub(1).0) & 0x3) as u8;
+    let stroke = (dc1.overflowing_sub(1).0 & 0x3) as u8;
     let fill = (dc0.overflowing_sub(1).0 & 0x3) as u8;
 
     let mut a = width - 1;
@@ -97,43 +98,5 @@ pub(crate) fn oval_impl<T: Screen>(
         set_pixel_unclipped_impl(screen, west - 1, south, stroke);
         set_pixel_unclipped_impl(screen, east + 1, south, stroke);
         south -= 1;
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::oval_impl;
-    use crate::console::framebuffer::{as_fb_vec, ArrayScreen};
-
-    #[test]
-    fn test_oval_small_circular() {
-        // 8x5 pixels, with 4 pix/byte, that's 2 bytes/row, 10 bytes in total
-        let mut screen = ArrayScreen::<10, 8>::new();
-        oval_impl(&mut screen, 0x40, 0, 0, 5, 5);
-
-        let expected = ArrayScreen::new_with_fb_lines(&[
-            as_fb_vec(0b_00_11_11_11_00_00_00_00__u16),
-            as_fb_vec(0b_11_00_00_00_11_00_00_00__u16),
-            as_fb_vec(0b_11_00_00_00_11_00_00_00__u16),
-            as_fb_vec(0b_11_00_00_00_11_00_00_00__u16),
-            as_fb_vec(0b_00_11_11_11_00_00_00_00__u16),
-        ]);
-
-        assert_eq!(screen, expected);
-    }
-
-    #[test]
-    fn test_oval_slim_horizontal() {
-        // 8x3 pixels, with 4 pix/byte, that's 2 bytes/row, 6 bytes in total
-        let mut screen = ArrayScreen::<6, 8>::new();
-        oval_impl(&mut screen, 0x40, 0, 0, 8, 3);
-
-        let expected = ArrayScreen::new_with_fb_lines(&[
-            as_fb_vec(0b_00_00_11_11_11_11_00_00__u16),
-            as_fb_vec(0b_11_11_00_00_00_00_11_11__u16),
-            as_fb_vec(0b_00_00_11_11_11_11_00_00__u16),
-        ]);
-
-        assert_eq!(screen, expected);
     }
 }

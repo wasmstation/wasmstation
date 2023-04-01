@@ -1,0 +1,14 @@
+[package]
+name = "wasmstation-core"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+
+[dependencies]
+log.workspace = true
+bytemuck.workspace = true
+anyhow.workspace = true
+num-traits = "0.2"
+byteorder = "1.4"
+cpal = "0.14"

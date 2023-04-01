@@ -22,7 +22,7 @@ use sdl2::{
     EventPump,
 };
 
-use crate::{
+use wasmstation_core::{
     utils,
     wasm4::{
         BUTTON_1, BUTTON_2, BUTTON_DOWN, BUTTON_LEFT, BUTTON_RIGHT, BUTTON_UP, FRAMEBUFFER_SIZE,
@@ -56,8 +56,7 @@ pub fn launch(mut backend: impl Backend, path: &Path, display_scale: u32) -> any
             .split('.')
             .next()
             .unwrap_or("wasmstation")
-            .replace('-', " ")
-            .replace('_', " ")
+            .replace(['-', '_'], " ")
     );
 
     let sdl_context = sdl2::init().map_err(|s| anyhow!("{s}"))?;
@@ -141,6 +140,14 @@ pub fn launch(mut backend: impl Backend, path: &Path, display_scale: u32) -> any
             Instant::now().saturating_duration_since(start).as_millis()
         );
     }
+
+    Ok(())
+}
+
+fn write_save(data: [u8; 1024], path: &Path) -> anyhow::Result<()> {
+    let mut file = File::create(path)?;
+    file.write_all(&data)?;
+    file.sync_all()?;
 
     Ok(())
 }
@@ -293,12 +300,4 @@ fn handle_input(
     }
 
     false
-}
-
-fn write_save(data: [u8; 1024], path: &Path) -> anyhow::Result<()> {
-    let mut file = File::create(path)?;
-    file.write_all(&data)?;
-    file.sync_all()?;
-
-    Ok(())
 }

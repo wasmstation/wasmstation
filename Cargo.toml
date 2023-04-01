@@ -1,3 +1,14 @@
 [workspace]
-members = ["cli", "wasmstation"]
-resolver = "2"
+members = ["cli", "core", "wasmer", "desktop"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["Grant Handy <granthandy@proton.me>", "Upachler"]
+license = "MIT"
+repository = "https://github.com/wasmstation/wasmstation"
+
+[workspace.dependencies]
+log = "0.4"
+anyhow = "1.0"
+bytemuck = "1.12"
