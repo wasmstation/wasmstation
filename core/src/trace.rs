@@ -1,6 +1,8 @@
+//! WASM-4 string parsing.
+
 use crate::Source;
 
-/// Parse a formatted string.
+/// Parse a format string.
 ///
 /// Arguments:
 ///  - `fmt: usize`: a pointer to the format string (**null terminated ASCII**).

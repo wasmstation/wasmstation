@@ -1,3 +1,4 @@
+use core::mem; 
 use crate::{wasm4::FRAMEBUFFER_SIZE, Sink, Source};
 
 use super::{
@@ -5,9 +6,8 @@ use super::{
 };
 
 /// Draw a line between two points.
-///
-/// see <https://github.com/aduros/wasm4/blob/main/runtimes/native/src/framebuffer.c>
-/// who in turn took it from <https://github.com/nesbox/TIC-80/blob/master/src/core/draw.c>
+// see <https://github.com/aduros/wasm4/blob/main/runtimes/native/src/framebuffer.c>
+// who in turn took it from <https://github.com/nesbox/TIC-80/blob/master/src/core/draw.c>
 pub fn line<T: Source<u8> + Sink<u8>>(
     fb: &mut T,
     draw_colors: u16,
@@ -25,7 +25,7 @@ pub fn line<T: Source<u8> + Sink<u8>>(
     line_impl(&mut Wasm4Screen { fb }, stroke_color, x1, y1, x2, y2);
 }
 
-fn line_impl<T: Screen>(
+pub(crate) fn line_impl<T: Screen>(
     screen: &mut T,
     stroke_color: u8,
     mut x1: i32,
@@ -34,13 +34,8 @@ fn line_impl<T: Screen>(
     mut y2: i32,
 ) {
     if y1 > y2 {
-        let swap = x1;
-        x1 = x2;
-        x2 = swap;
-
-        let swap = y1;
-        y1 = y2;
-        y2 = swap;
+        mem::swap(&mut x1, &mut x2);
+        mem::swap(&mut y1, &mut y2);
     }
 
     let dx = (x2 - x1).abs();
@@ -72,7 +67,7 @@ fn line_impl<T: Screen>(
     }
 }
 
-/// Draw a horizontal line between `(x, y)` and `(x + len - 1, y)`.
+/// Draw a horizontal line.
 pub fn hline<T: Source<u8> + Sink<u8>>(fb: &mut T, draw_colors: u16, x: i32, y: i32, len: u32) {
     if let Some(stroke) = remap_draw_color(DRAW_COLOR_1, draw_colors) {
         hline_impl(&mut Wasm4Screen { fb }, stroke, x, y, len);
@@ -114,7 +109,7 @@ pub(crate) fn hline_impl<T: Screen>(screen: &mut T, stroke: u8, x: i32, y: i32, 
     }
 }
 
-/// Draw a vertical line between `(x, y)` and `(x + len - 1, y)`.
+/// Draw a vertical line.
 pub fn vline<T: Source<u8> + Sink<u8>>(fb: &mut T, draw_colors: u16, x: i32, y: i32, len: u32) {
     if let Some(stroke) = remap_draw_color(DRAW_COLOR_1, draw_colors) {
         vline_impl(&mut Wasm4Screen { fb }, stroke, x, y, len);
@@ -135,71 +130,5 @@ pub(crate) fn vline_impl<T: Screen>(screen: &mut T, stroke: u8, x: i32, y: i32, 
 
     for y in start_y..end_y {
         set_pixel_impl(screen, x, y, stroke);
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{hline_impl, line_impl, vline_impl};
-    use crate::console::framebuffer::{as_fb_vec, ArrayScreen};
-
-    #[test]
-    fn test_hline() {
-        let mut screen = ArrayScreen::<4, 8>::new();
-        let expected = ArrayScreen::new_with_fb_lines(&[
-            as_fb_vec(0b_00_11_11_11_11_11_11_00__u16),
-            as_fb_vec(0b_11_11_11_11_11_11_00_00__u16),
-        ]);
-
-        hline_impl(&mut screen, 3, 1, 0, 6);
-        hline_impl(&mut screen, 3, -1, 1, 7);
-
-        println!("{:?}", &screen);
-        assert_eq!(screen, expected);
-    }
-
-    #[test]
-    fn test_vline() {
-        let mut screen = ArrayScreen::<7, 4>::new();
-        let expected = ArrayScreen::new_with_fb_lines(&[
-            as_fb_vec(0b_00_00_00_00__u8),
-            as_fb_vec(0b_11_00_11_00__u8),
-            as_fb_vec(0b_11_00_11_00__u8),
-            as_fb_vec(0b_11_00_11_00__u8),
-            as_fb_vec(0b_00_00_11_00__u8),
-            as_fb_vec(0b_11_00_11_00__u8),
-            as_fb_vec(0b_00_00_11_00__u8),
-        ]);
-
-        vline_impl(&mut screen, 3, 2, 1, 6);
-        vline_impl(&mut screen, 3, 0, 1, 3);
-        vline_impl(&mut screen, 3, 0, 5, 1);
-
-        println!("{:?}", &screen);
-        assert_eq!(screen, expected);
-    }
-
-    #[test]
-    fn test_line() {
-        let mut screen = ArrayScreen::<18, 8>::new();
-        let expected = ArrayScreen::new_with_fb_lines(&[
-            as_fb_vec(0b_11_00_00_00_00_00_00_00__u16),
-            as_fb_vec(0b_00_11_00_00_00_00_11_00__u16),
-            as_fb_vec(0b_00_00_11_00_00_00_11_00__u16),
-            as_fb_vec(0b_00_00_00_11_00_00_11_00__u16),
-            as_fb_vec(0b_00_00_00_00_00_00_00_11__u16),
-            as_fb_vec(0b_00_11_00_00_00_00_00_11__u16),
-            as_fb_vec(0b_00_11_00_00_00_00_00_11__u16),
-            as_fb_vec(0b_11_00_00_00_11_11_11_00__u16),
-            as_fb_vec(0b_11_00_00_00_00_00_00_00__u16)
-        ]);
-
-        line_impl(&mut screen, 3, -1, -1, 3, 3);
-        line_impl(&mut screen, 3, 0, 8, 1, 5);
-        line_impl(&mut screen, 3, 6, 1, 7, 6);
-        line_impl(&mut screen, 3, 4, 7, 6, 7);
-
-        println!("{:?}", &screen);
-        assert_eq!(screen, expected);
     }
 }

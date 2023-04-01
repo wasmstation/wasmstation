@@ -13,4 +13,6 @@ strip = true
 wasmer = "3.1"
 
 [dependencies]
-wasmstation = { git = "https://github.com/wasmstation/wasmstation" }
+wasmstation_desktop = { git = "https://github.com/wasmstation/wasmstation", package = "wasmstation-desktop" }
+wasmsation_wasmer = { git = "https://github.com/wasmstation/wasmstation", package = "wasmstation-desktop" }
+wasmsation_core = { git = "https://github.com/wasmstation/wasmstation", package = "wasmstation-core" }
