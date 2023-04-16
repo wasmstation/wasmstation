@@ -2,8 +2,11 @@
 #![no_std]
 
 use wasmstation_web::{wasm_bindgen::prelude::*, launch_canvas};
+use wasm_logger::Config;
 
 #[wasm_bindgen(start)]
-pub async fn start() -> Result<(), JsValue> {
-    launch_canvas(include_bytes!("watris.wasm"), "canvas").await
+pub fn start() {
+    wasm_logger::init(Config::default());
+
+    launch_canvas(include_bytes!("hello.wasm"), "canvas");
 }

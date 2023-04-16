@@ -4,3 +4,6 @@ all:
 
 serve: all
 	python -m http.server -d examples
+
+dev:
+	cargo watch --ignore "examples/pkg" -s "make serve"
