@@ -3,75 +3,16 @@
 
 extern crate alloc;
 
-use alloc::{boxed::Box, rc::Rc, string::String};
-use core::{array, cell::RefCell};
+use alloc::string::String;
+use core::array;
 
-use wasm_bindgen::prelude::*;
 use wasmi::{
     AsContext, AsContextMut, Caller, Engine, Func, Instance, Linker, Memory, MemoryType, Module,
     Store,
 };
 use wasmstation_core::{framebuffer, utils, wasm4, Backend, Sink, Source};
-use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement};
 
-pub use wasm_bindgen;
-
-#[wasm_bindgen]
-extern "C" {
-    #[wasm_bindgen(js_namespace = console)]
-    fn log(msg: &str);
-}
-
-/// Launch a wasmstation game on the canvas with a specified ID.
-pub fn launch_canvas(bytes: &[u8], id: &str) {
-    log::info!("starting wasmstation on {id}");
-    let mut backend = match WasmiBackend::from_bytes(bytes) {
-        Ok(backend) => backend,
-        Err(err) => {
-            log::error!("error starting backend: {err}");
-            return;
-        }
-    };
-
-    let window = web_sys::window().expect("get global window");
-    let canvas = window
-        .document()
-        .expect("get document")
-        .get_element_by_id(id)
-        .expect("get canvas")
-        .dyn_into::<HtmlCanvasElement>()
-        .expect("into CanvasElement");
-    let context = canvas
-        .get_context("2d")
-        .expect("get canvas 2d context")
-        .unwrap()
-        .dyn_into::<CanvasRenderingContext2d>()
-        .expect("into CanvasRenderingContext2d");
-
-    backend.call_start();
-
-    let mut framebuffer = utils::default_framebuffer();
-    let mut palette = utils::default_palette();
-
-    let f = Rc::new(RefCell::new(None));
-    let g = f.clone();
-
-    *g.borrow_mut() = Some(Closure::wrap(Box::new(move || {
-        backend.call_update();
-        backend.read_screen(&mut framebuffer, &mut palette);
-
-        // Schedule ourself for another requestAnimationFrame callback.
-        request_animation_frame(f.borrow().as_ref().expect("request name animation frame"));
-    }) as Box<dyn FnMut()>));
-
-    request_animation_frame(
-        g.borrow()
-            .as_ref()
-            .expect("request initial animation farme"),
-    );
-}
-
-struct WasmiBackend {
+pub struct WasmiBackend {
     instance: Instance,
     store: Store<WasmiBackendState>,
     start: Option<Func>,
@@ -234,7 +175,7 @@ fn trace_utf8(store: &mut Store<WasmiBackendState>) -> Func {
                 .read(&caller, ptr as usize, &mut buf)
                 .expect("read traceUtf8 string");
 
-            log(&String::from_utf8_lossy(&buf));
+            log::info!("traceUtf8: {}", String::from_utf8_lossy(&buf));
         },
     )
 }
@@ -459,11 +400,4 @@ fn draw_colors<C: AsContext>(ctx: C, mem: Memory) -> u16 {
         .expect("WasmiBackendState read DRAW_COLORS");
 
     bytemuck::cast(buf)
-}
-
-fn request_animation_frame(f: &Closure<dyn FnMut()>) {
-    web_sys::window()
-        .expect("no global `window` exists")
-        .request_animation_frame(f.as_ref().unchecked_ref())
-        .expect("should register `requestAnimationFrame` OK");
 }

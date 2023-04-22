@@ -1,6 +1,6 @@
 use log::error;
 use wasmer::{
-    imports, AsStoreRef, Engine, Function, FunctionEnv, FunctionEnvMut, Instance, Memory,
+    imports, Engine, Function, FunctionEnv, FunctionEnvMut, Instance, Memory,
     MemoryType, MemoryView, Module, Store, TypedFunction, ValueType, WasmPtr, WasmSlice,
 };
 
@@ -184,7 +184,7 @@ struct Context<'a> {
 
 impl<'a> Context<'a> {
     fn from_env(env: &'a FunctionEnvMut<'a, WasmerRuntimeEnv>) -> Context<'a> {
-        let view = env.data().memory.view(&env.as_store_ref());
+        let view = env.data().memory.view(env);
 
         Self { view }
     }
