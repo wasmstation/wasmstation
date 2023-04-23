@@ -1,6 +1,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 
 use core::cell::Cell;
+use std::sync::Arc;
 
 mod audio;
 pub mod framebuffer;
@@ -127,12 +128,14 @@ where
 
 pub struct Console {
     audio_state: AudioState,
+    print: Arc<Box<dyn Fn(&str) + Sync + Send + 'static>>,
 }
 
 impl Console {
-    pub fn new() -> Self {
+    pub fn new(print: (impl Fn(&str) + Send + Sync + 'static)) -> Self {
         Self {
             audio_state: AudioState::new(),
+            print: Arc::new(Box::new(print)),
         }
     }
 
@@ -141,6 +144,7 @@ impl Console {
             audio_api: self.audio_state.api().clone(),
             save_cache: Cell::new([0; 1024]),
             needs_write: Cell::new(false),
+            print: self.print.clone(),
         }
     }
 
@@ -151,13 +155,13 @@ impl Console {
 
 impl Default for Console {
     fn default() -> Self {
-        Self::new()
+        Self::new(|s| log::info!("trace: {s}"))
     }
 }
 
-#[derive(Clone)]
 pub struct Api {
     audio_api: AudioInterface,
+    print: Arc<Box<dyn Fn(&str) + Sync + Send + 'static>>,
     pub save_cache: Cell<[u8; 1024]>,
     pub needs_write: Cell<bool>,
 }
@@ -174,5 +178,9 @@ impl Api {
         } else {
             None
         }
+    }
+
+    pub fn print(&self, msg: &str) {
+        (self.print)(msg);
     }
 }

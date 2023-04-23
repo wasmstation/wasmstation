@@ -3,14 +3,14 @@
 
 extern crate alloc;
 
-use alloc::string::String;
-use core::array;
+use core::{array, str};
 
+use alloc::{string::String, vec::Vec};
 use wasmi::{
     AsContext, AsContextMut, Caller, Engine, Func, Instance, Linker, Memory, MemoryType, Module,
     Store,
 };
-use wasmstation_core::{framebuffer, utils, wasm4, Backend, Sink, Source};
+use wasmstation_core::{framebuffer, utils, wasm4, Api, Backend, Console, Sink, Source};
 
 pub struct WasmiBackend {
     instance: Instance,
@@ -20,7 +20,7 @@ pub struct WasmiBackend {
 }
 
 impl WasmiBackend {
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, wasmi::Error> {
+    pub fn from_bytes(bytes: &[u8], console: &Console) -> Result<Self, wasmi::Error> {
         let engine = Engine::default();
         let module = Module::new(&engine, bytes).map_err(|e| wasmi::Error::from(e))?;
 
@@ -43,6 +43,7 @@ impl WasmiBackend {
         // hacky, but strangely I don't think the API has an elegant way to do this
         *store.data_mut() = WasmiBackendState {
             memory: Some(memory),
+            api: Some(console.create_api()),
         };
 
         let mut linker = <Linker<WasmiBackendState>>::new(&engine);
@@ -51,23 +52,23 @@ impl WasmiBackend {
             .map_err(|e| wasmi::Error::from(e))?;
 
         let env: [(&str, Func); 17] = [
-            ("trace", trace(&mut store)),
-            ("tracef", tracef(&mut store)),
-            ("traceUtf8", trace_utf8(&mut store)),
-            ("traceUtf16", trace_utf16(&mut store)),
-            ("blit", blit(&mut store)),
-            ("blitSub", blit_sub(&mut store)),
-            ("line", line(&mut store)),
-            ("hline", hline(&mut store)),
-            ("vline", vline(&mut store)),
-            ("oval", oval(&mut store)),
-            ("rect", rect(&mut store)),
-            ("text", text(&mut store)),
-            ("textUtf8", text_utf8(&mut store)),
-            ("textUtf16", text_utf16(&mut store)),
-            ("diskr", diskr(&mut store)),
-            ("diskw", diskw(&mut store)),
-            ("tone", tone(&mut store)),
+            ("trace", Func::wrap(&mut store, trace)),
+            ("tracef", Func::wrap(&mut store, tracef)),
+            ("traceUtf8", Func::wrap(&mut store, trace_utf8)),
+            ("traceUtf16", Func::wrap(&mut store, trace_utf16)),
+            ("blit", Func::wrap(&mut store, blit)),
+            ("blitSub", Func::wrap(&mut store, blit_sub)),
+            ("line", Func::wrap(&mut store, line)),
+            ("hline", Func::wrap(&mut store, hline)),
+            ("vline", Func::wrap(&mut store, vline)),
+            ("oval", Func::wrap(&mut store, oval)),
+            ("rect", Func::wrap(&mut store, rect)),
+            ("text", Func::wrap(&mut store, text)),
+            ("textUtf8", Func::wrap(&mut store, text_utf8)),
+            ("textUtf16", Func::wrap(&mut store, text_utf16)),
+            ("diskr", Func::wrap(&mut store, diskr)),
+            ("diskw", Func::wrap(&mut store, diskw)),
+            ("tone", Func::wrap(&mut store, tone)),
         ];
 
         for (name, func) in env {
@@ -99,8 +100,9 @@ impl Backend for WasmiBackend {
         let mem = self.store.data().memory();
 
         let mut flags: [u8; 1] = [0];
-        mem.read(&self.store, wasm4::SYSTEM_FLAGS_ADDR, &mut flags)
-            .expect("read system flags");
+        if let Err(err) = mem.read(&self.store, wasm4::SYSTEM_FLAGS_ADDR, &mut flags) {
+            log::error!("error reading system flags: {err}");
+        }
 
         if wasm4::SYSTEM_PRESERVE_FRAMEBUFFER & flags[0] == 0 {
             framebuffer::clear(&mut framebuffer(&mut self.store, mem));
@@ -122,189 +124,191 @@ impl Backend for WasmiBackend {
     }
 
     fn read_screen(&self, framebuffer: &mut [u8; wasm4::FRAMEBUFFER_SIZE], palette: &mut [u8; 16]) {
-        self.store
-            .data()
-            .memory()
-            .read(&self.store, wasm4::FRAMEBUFFER_ADDR, framebuffer)
-            .expect("read to screen");
+        if let Err(err) =
+            self.store
+                .data()
+                .memory()
+                .read(&self.store, wasm4::FRAMEBUFFER_ADDR, framebuffer)
+        {
+            log::error!("error reading from screen: {err}");
+        }
     }
 
     fn read_system_flags(&self) -> u8 {
-        todo!()
+        let mut flags = [0];
+
+        if let Err(err) =
+            self.store
+                .data()
+                .memory()
+                .read(&self.store, wasm4::SYSTEM_FLAGS_ADDR, &mut flags)
+        {
+            log::error!("error reading system flags: {err}");
+        }
+
+        flags[0]
     }
 
     fn set_gamepad(&mut self, gamepad: u32) {
-        todo!()
+        if let Err(err) = self.store.data().memory().write(
+            &mut self.store,
+            wasm4::GAMEPAD1_ADDR,
+            bytemuck::cast_slice(&[gamepad]),
+        ) {
+            log::error!("error writing to gamepad: {err}");
+        }
     }
 
     fn set_mouse(&mut self, x: i16, y: i16, buttons: u8) {
-        todo!()
+        if let Err(err) = self.store.data().memory().write(
+            &mut self.store,
+            wasm4::MOUSE_X_ADDR,
+            bytemuck::cast_slice(&[x]),
+        ) {
+            log::error!("error setting mouse x: {err}");
+        }
+
+        if let Err(err) = self.store.data().memory().write(
+            &mut self.store,
+            wasm4::MOUSE_Y_ADDR,
+            bytemuck::cast_slice(&[y]),
+        ) {
+            log::error!("error setting mouse y: {err}");
+        }
+
+        if let Err(err) = self.store.data().memory().write(
+            &mut self.store,
+            wasm4::MOUSE_BUTTONS_ADDR,
+            bytemuck::cast_slice(&[buttons]),
+        ) {
+            log::error!("error setting mouse buttons: {err}");
+        }
     }
 
     fn write_save_cache(&mut self) -> Option<[u8; 1024]> {
-        todo!()
+        self.store.data().api().write_save()
     }
 
     fn set_save_cache(&mut self, data: [u8; 1024]) {
-        todo!()
+        self.store.data().api().save_cache.set(data);
     }
 }
 
-fn trace(store: &mut Store<WasmiBackendState>) -> Func {
-    Func::wrap(
-        store,
-        |caller: Caller<'_, WasmiBackendState>, ptr: u32| todo!(),
-    )
+fn trace(caller: Caller<'_, WasmiBackendState>, ptr: u32) {
+    let output: Vec<u8> = alloc::vec![];
+
+    let offset = ptr as usize;
+    let last: u8 = 1;
+
+    // while last != 0 {
+    //     last = match caller.data().memory().read(&self.store, offset) {}
+    // }
 }
 
-fn tracef(store: &mut Store<WasmiBackendState>) -> Func {
-    Func::wrap(
-        store,
-        |caller: Caller<'_, WasmiBackendState>, fmt: u32, args: u32| todo!(),
-    )
+fn tracef(caller: Caller<'_, WasmiBackendState>, fmt: u32, args: u32) {
+    todo!()
 }
 
-fn trace_utf8(store: &mut Store<WasmiBackendState>) -> Func {
-    Func::wrap(
-        store,
-        |caller: Caller<'_, WasmiBackendState>, ptr: u32, len: u32| {
-            let mut buf = alloc::vec![0; len as usize];
-            caller
-                .data()
-                .memory()
-                .read(&caller, ptr as usize, &mut buf)
-                .expect("read traceUtf8 string");
+fn trace_utf8(caller: Caller<'_, WasmiBackendState>, ptr: u32, len: u32) {
+    let mut buf = alloc::vec![0; len as usize];
+    if let Err(err) = caller.data().memory().read(&caller, ptr as usize, &mut buf) {
+        log::error!("error reading traceUtf8 bytes: {err}");
+    }
 
-            log::info!("traceUtf8: {}", String::from_utf8_lossy(&buf));
+    match str::from_utf8(&buf) {
+        Ok(msg) => caller.data().api().print(msg),
+        Err(err) => log::error!("traceUtf8 parse error: {err}"),
+    }
+}
+
+fn trace_utf16(caller: Caller<'_, WasmiBackendState>, ptr: u32, len: u32) {
+    todo!()
+}
+
+fn blit(
+    caller: Caller<'_, WasmiBackendState>,
+    ptr: u32,
+    x: i32,
+    y: i32,
+    width: u32,
+    height: u32,
+    flags: u32,
+) {
+    todo!()
+}
+
+fn blit_sub(
+    caller: Caller<'_, WasmiBackendState>,
+    sprite: u32,
+    x: i32,
+    y: i32,
+    width: u32,
+    height: u32,
+    src_x: u32,
+    src_y: u32,
+    stride: u32,
+    flags: u32,
+) {
+    todo!()
+}
+
+fn line(mut caller: Caller<'_, WasmiBackendState>, x1: i32, y1: i32, x2: i32, y2: i32) {
+    let memory = caller.data().memory();
+    let dc = draw_colors(&caller, memory);
+
+    framebuffer::line(
+        &mut WasmiSlice {
+            offset: wasm4::FRAMEBUFFER_ADDR,
+            len: wasm4::FRAMEBUFFER_SIZE,
+            mem: memory,
+            ctx: &mut caller,
         },
-    )
+        dc,
+        x1,
+        y1,
+        x2,
+        y2,
+    );
 }
 
-fn trace_utf16(store: &mut Store<WasmiBackendState>) -> Func {
-    Func::wrap(
-        store,
-        |caller: Caller<'_, WasmiBackendState>, ptr: u32, len: u32| todo!(),
-    )
+fn hline(caller: Caller<'_, WasmiBackendState>, x: i32, y: i32, len: u32) {
+    todo!()
 }
 
-fn blit(store: &mut Store<WasmiBackendState>) -> Func {
-    Func::wrap(
-        store,
-        |caller: Caller<'_, WasmiBackendState>,
-         ptr: u32,
-         x: i32,
-         y: i32,
-         width: u32,
-         height: u32,
-         flags: u32| { todo!() },
-    )
+fn vline(caller: Caller<'_, WasmiBackendState>, x: i32, y: i32, len: u32) {
+    todo!()
 }
 
-fn blit_sub(store: &mut Store<WasmiBackendState>) -> Func {
-    Func::wrap(
-        store,
-        |caller: Caller<'_, WasmiBackendState>,
-         sprite: u32,
-         x: i32,
-         y: i32,
-         width: u32,
-         height: u32,
-         src_x: u32,
-         src_y: u32,
-         stride: u32,
-         flags: u32| todo!(),
-    )
+fn oval(caller: Caller<'_, WasmiBackendState>, x: i32, y: i32, width: u32, height: u32) {
+    todo!()
 }
 
-fn line(store: &mut Store<WasmiBackendState>) -> Func {
-    Func::wrap(
-        store,
-        |mut caller: Caller<'_, WasmiBackendState>, x1: i32, y1: i32, x2: i32, y2: i32| {
-            framebuffer::line(
-                &mut WasmiSlice {
-                    offset: wasm4::FRAMEBUFFER_ADDR,
-                    len: wasm4::FRAMEBUFFER_SIZE,
-                    mem: caller.data().memory(),
-                    ctx: &mut caller,
-                },
-                0x1,
-                x1,
-                y1,
-                x2,
-                y2,
-            );
-        },
-    )
+fn rect(caller: Caller<'_, WasmiBackendState>, x: i32, y: i32, width: u32, height: u32) {
+    todo!()
 }
 
-fn hline(store: &mut Store<WasmiBackendState>) -> Func {
-    Func::wrap(
-        store,
-        |caller: Caller<'_, WasmiBackendState>, x: i32, y: i32, len: u32| todo!(),
-    )
+fn text(caller: Caller<'_, WasmiBackendState>, ptr: u32, x: i32, y: i32) {
+    todo!()
 }
 
-fn vline(store: &mut Store<WasmiBackendState>) -> Func {
-    Func::wrap(
-        store,
-        |caller: Caller<'_, WasmiBackendState>, x: i32, y: i32, len: u32| todo!(),
-    )
+fn text_utf8(caller: Caller<'_, WasmiBackendState>, ptr: u32, len: u32, x: i32, y: i32) {
+    todo!()
 }
 
-fn oval(store: &mut Store<WasmiBackendState>) -> Func {
-    Func::wrap(
-        store,
-        |caller: Caller<'_, WasmiBackendState>, x: i32, y: i32, width: u32, height: u32| todo!(),
-    )
+fn text_utf16(caller: Caller<'_, WasmiBackendState>, ptr: u32, len: u32, x: i32, y: i32) {
+    todo!()
 }
 
-fn rect(store: &mut Store<WasmiBackendState>) -> Func {
-    Func::wrap(
-        store,
-        |caller: Caller<'_, WasmiBackendState>, x: i32, y: i32, width: u32, height: u32| todo!(),
-    )
+fn diskr(caller: Caller<'_, WasmiBackendState>, dest: u32, len: u32) {
+    todo!()
 }
 
-fn text(store: &mut Store<WasmiBackendState>) -> Func {
-    Func::wrap(
-        store,
-        |caller: Caller<'_, WasmiBackendState>, ptr: u32, x: i32, y: i32| todo!(),
-    )
+fn diskw(caller: Caller<'_, WasmiBackendState>, src: u32, len: u32) {
+    todo!()
 }
 
-fn text_utf8(store: &mut Store<WasmiBackendState>) -> Func {
-    Func::wrap(
-        store,
-        |caller: Caller<'_, WasmiBackendState>, ptr: u32, len: u32, x: i32, y: i32| todo!(),
-    )
-}
-
-fn text_utf16(store: &mut Store<WasmiBackendState>) -> Func {
-    Func::wrap(
-        store,
-        |caller: Caller<'_, WasmiBackendState>, ptr: u32, len: u32, x: i32, y: i32| todo!(),
-    )
-}
-
-fn diskr(store: &mut Store<WasmiBackendState>) -> Func {
-    Func::wrap(
-        store,
-        |caller: Caller<'_, WasmiBackendState>, dest: u32, len: u32| todo!(),
-    )
-}
-
-fn diskw(store: &mut Store<WasmiBackendState>) -> Func {
-    Func::wrap(
-        store,
-        |caller: Caller<'_, WasmiBackendState>, src: u32, len: u32| todo!(),
-    )
-}
-
-fn tone(store: &mut Store<WasmiBackendState>) -> Func {
-    Func::wrap(
-        store,
-        |caller: Caller<'_, WasmiBackendState>, freq: u32, dura: u32, vol: u32, flags: u32| todo!(),
-    )
+fn tone(caller: Caller<'_, WasmiBackendState>, freq: u32, dura: u32, vol: u32, flags: u32) {
+    todo!()
 }
 
 struct WasmiSlice<C: AsContextMut> {
@@ -375,12 +379,17 @@ impl<'a, C: AsContextMut> Sink<u8> for WasmiSlice<C> {
 #[derive(Default)]
 struct WasmiBackendState {
     pub memory: Option<Memory>,
+    pub api: Option<Api>,
 }
 
 impl WasmiBackendState {
     // eh... haha :)
     pub fn memory(&self) -> Memory {
         self.memory.unwrap()
+    }
+
+    pub fn api(&self) -> &Api {
+        self.api.as_ref().unwrap()
     }
 }
 
@@ -396,8 +405,9 @@ fn framebuffer<C: AsContextMut>(ctx: C, mem: Memory) -> WasmiSlice<C> {
 fn draw_colors<C: AsContext>(ctx: C, mem: Memory) -> u16 {
     let mut buf: [u8; 2] = [0, 0];
 
-    mem.read(ctx, wasm4::DRAW_COLORS_ADDR, &mut buf)
-        .expect("WasmiBackendState read DRAW_COLORS");
+    if let Err(err) = mem.read(ctx, wasm4::DRAW_COLORS_ADDR, &mut buf) {
+        log::error!("error reading draw colors: {err}");
+    }
 
     bytemuck::cast(buf)
 }
