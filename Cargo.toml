@@ -1,5 +1,5 @@
 [workspace]
-members = ["cli", "core", "wasmer", "desktop", "wasmi"]
+members = ["cli", "core", "wasmer", "desktop", "wasmi", "web"]
 
 [workspace.package]
 version = "0.1.0"
