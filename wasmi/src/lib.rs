@@ -1,5 +1,4 @@
 #![no_std]
-#![allow(dead_code, unused_variables)]
 
 extern crate alloc;
 
@@ -7,13 +6,11 @@ use core::{array, str};
 
 use alloc::{string::String, vec::Vec};
 use wasmi::{
-    AsContext, AsContextMut, Caller, Engine, Func, Instance, Linker, Memory, MemoryType, Module,
-    Store,
+    AsContext, AsContextMut, Caller, Engine, Func, Linker, Memory, MemoryType, Module, Store,
 };
 use wasmstation_core::{framebuffer, utils, wasm4, Api, Backend, Console, Sink, Source};
 
 pub struct WasmiBackend {
-    instance: Instance,
     store: Store<WasmiBackendState>,
     start: Option<Func>,
     update: Option<Func>,
@@ -87,7 +84,6 @@ impl WasmiBackend {
         let update: Option<Func> = instance.get_func(&store, "update").map_or(None, Some);
 
         Ok(Self {
-            instance,
             store,
             start,
             update,
@@ -130,7 +126,16 @@ impl Backend for WasmiBackend {
                 .memory()
                 .read(&self.store, wasm4::FRAMEBUFFER_ADDR, framebuffer)
         {
-            log::error!("error reading from screen: {err}");
+            log::error!("error reading framebuffer to screen: {err}");
+        }
+
+        if let Err(err) = self
+            .store
+            .data()
+            .memory()
+            .read(&self.store, wasm4::PALETTE_ADDR, palette)
+        {
+            log::error!("error reading palette to screen: {err}");
         }
     }
 
@@ -260,7 +265,7 @@ fn blit(
 }
 
 fn blit_sub(
-    caller: Caller<'_, WasmiBackendState>,
+    mut caller: Caller<'_, WasmiBackendState>,
     sprite: u32,
     x: i32,
     y: i32,
@@ -271,76 +276,179 @@ fn blit_sub(
     stride: u32,
     flags: u32,
 ) {
-    todo!()
-}
+    let mem = caller.data().memory();
+    let dc = draw_colors(&caller, mem);
 
-fn line(mut caller: Caller<'_, WasmiBackendState>, x1: i32, y1: i32, x2: i32, y2: i32) {
-    let memory = caller.data().memory();
-    let dc = draw_colors(&caller, memory);
+    let num_bits = stride * (height + src_y) * framebuffer::pixel_width_of_flags(flags);
 
-    framebuffer::line(
-        &mut WasmiSlice {
-            offset: wasm4::FRAMEBUFFER_ADDR,
-            len: wasm4::FRAMEBUFFER_SIZE,
-            mem: memory,
-            ctx: &mut caller,
-        },
+    let mut sprite_buf = alloc::vec![0; ((num_bits + 7) / 8) as usize];
+    if let Err(err) = caller
+        .data()
+        .memory()
+        .read(&caller, sprite as usize, &mut sprite_buf)
+    {
+        log::error!("error reading sprite bytes: {err}");
+    }
+
+    framebuffer::blit_sub(
+        &mut framebuffer(&mut caller, mem),
+        &sprite_buf,
+        x,
+        y,
+        width,
+        height,
+        src_x,
+        src_y,
+        stride,
+        flags,
         dc,
-        x1,
-        y1,
-        x2,
-        y2,
     );
 }
 
-fn hline(caller: Caller<'_, WasmiBackendState>, x: i32, y: i32, len: u32) {
-    todo!()
+fn line(mut caller: Caller<'_, WasmiBackendState>, x1: i32, y1: i32, x2: i32, y2: i32) {
+    let mem = caller.data().memory();
+    let dc = draw_colors(&caller, mem);
+
+    framebuffer::line(&mut framebuffer(&mut caller, mem), dc, x1, y1, x2, y2);
 }
 
-fn vline(caller: Caller<'_, WasmiBackendState>, x: i32, y: i32, len: u32) {
-    todo!()
+fn hline(mut caller: Caller<'_, WasmiBackendState>, x: i32, y: i32, len: u32) {
+    let mem = caller.data().memory();
+    let dc = draw_colors(&caller, mem);
+
+    framebuffer::hline(&mut framebuffer(&mut caller, mem), dc, x, y, len);
 }
 
-fn oval(caller: Caller<'_, WasmiBackendState>, x: i32, y: i32, width: u32, height: u32) {
-    todo!()
+fn vline(mut caller: Caller<'_, WasmiBackendState>, x: i32, y: i32, len: u32) {
+    let mem = caller.data().memory();
+    let dc = draw_colors(&caller, mem);
+
+    framebuffer::vline(&mut framebuffer(&mut caller, mem), dc, x, y, len);
 }
 
-fn rect(caller: Caller<'_, WasmiBackendState>, x: i32, y: i32, width: u32, height: u32) {
-    todo!()
+fn oval(mut caller: Caller<'_, WasmiBackendState>, x: i32, y: i32, width: u32, height: u32) {
+    let mem = caller.data().memory();
+    let dc = draw_colors(&caller, mem);
+
+    framebuffer::oval(&mut framebuffer(&mut caller, mem), dc, x, y, width, height);
 }
 
-fn text(caller: Caller<'_, WasmiBackendState>, ptr: u32, x: i32, y: i32) {
-    todo!()
+fn rect(mut caller: Caller<'_, WasmiBackendState>, x: i32, y: i32, width: u32, height: u32) {
+    let mem = caller.data().memory();
+    let dc = draw_colors(&caller, mem);
+
+    framebuffer::rect(&mut framebuffer(&mut caller, mem), dc, x, y, width, height);
 }
 
-fn text_utf8(caller: Caller<'_, WasmiBackendState>, ptr: u32, len: u32, x: i32, y: i32) {
-    todo!()
+fn text(mut caller: Caller<'_, WasmiBackendState>, mut ptr: u32, x: i32, y: i32) {
+    let mem = caller.data().memory();
+    let dc = draw_colors(&caller, mem);
+
+    let mut text: Vec<u8> = Vec::new();
+    let mut buf: [u8; 1] = [1];
+
+    while buf[0] != 0 {
+        if let Err(err) = caller.data().memory().read(&caller, ptr as usize, &mut buf) {
+            log::error!("error reading bytes in text: {err}");
+            return;
+        };
+
+        ptr += 1;
+        text.push(buf[0]);
+    }
+
+    framebuffer::text(&mut framebuffer(&mut caller, mem), &text, x, y, dc);
 }
 
-fn text_utf16(caller: Caller<'_, WasmiBackendState>, ptr: u32, len: u32, x: i32, y: i32) {
-    todo!()
+fn text_utf8(mut caller: Caller<'_, WasmiBackendState>, ptr: u32, len: u32, x: i32, y: i32) {
+    let mem = caller.data().memory();
+    let dc = draw_colors(&caller, mem);
+
+    let mut text = alloc::vec![0; len as usize];
+    if let Err(err) = caller
+        .data()
+        .memory()
+        .read(&caller, ptr as usize, &mut text)
+    {
+        log::error!("error reading traceUtf8 bytes: {err}");
+    }
+
+    framebuffer::text(&mut framebuffer(&mut caller, mem), &text, x, y, dc);
 }
 
-fn diskr(caller: Caller<'_, WasmiBackendState>, dest: u32, len: u32) {
-    todo!()
+fn text_utf16(mut caller: Caller<'_, WasmiBackendState>, ptr: u32, len: u32, x: i32, y: i32) {
+    let mem = caller.data().memory();
+    let dc = draw_colors(&caller, mem);
+
+    let mut text = alloc::vec![0; len as usize];
+    if let Err(err) = caller
+        .data()
+        .memory()
+        .read(&caller, ptr as usize, &mut text)
+    {
+        log::error!("error reading traceUtf8 bytes: {err}");
+    }
+
+    framebuffer::text(
+        &mut framebuffer(&mut caller, mem),
+        &bytemuck::cast_slice::<u8, u16>(&text),
+        x,
+        y,
+        dc,
+    );
 }
 
-fn diskw(caller: Caller<'_, WasmiBackendState>, src: u32, len: u32) {
-    todo!()
+fn diskr(mut caller: Caller<'_, WasmiBackendState>, dest: u32, len: u32) -> u32 {
+    let data = caller.data().api().save_cache.get();
+
+    if let Err(err) = caller
+        .data()
+        .memory()
+        .write(&mut caller, dest as usize, &data)
+    {
+        log::error!("error writing disk cache to memory: {err}");
+    };
+
+    u32::min(len, 1024)
+}
+
+fn diskw(mut caller: Caller<'_, WasmiBackendState>, src: u32, len: u32) -> u32 {
+    let mut buf = alloc::vec![0; len as usize];
+    if let Err(err) = caller
+        .data()
+        .memory()
+        .read(&mut caller, src as usize, &mut buf)
+    {
+        log::error!("error reading disk cache from memory: {err}");
+    };
+
+    buf.resize(1024, 0);
+
+    caller.data().api().needs_write.set(true);
+    caller
+        .data()
+        .api()
+        .save_cache
+        .set(buf.try_into().expect("resize disk write contents"));
+
+    u32::min(len, 1024)
 }
 
 fn tone(caller: Caller<'_, WasmiBackendState>, freq: u32, dura: u32, vol: u32, flags: u32) {
-    todo!()
+    caller.data().api().tone(freq, dura, vol, flags);
 }
 
-struct WasmiSlice<C: AsContextMut> {
+struct WasmiSlice<C> {
     offset: usize,
     len: usize,
     mem: Memory,
     ctx: C,
 }
 
-impl<C: AsContextMut> Source<u8> for WasmiSlice<C> {
+impl<C> Source<u8> for WasmiSlice<C>
+where
+    C: AsContext,
+{
     fn item_at(&self, offset: usize) -> Option<u8> {
         if self.len < offset {
             return None;
@@ -378,7 +486,10 @@ impl<C: AsContextMut> Source<u8> for WasmiSlice<C> {
     }
 }
 
-impl<'a, C: AsContextMut> Sink<u8> for WasmiSlice<C> {
+impl<C> Sink<u8> for WasmiSlice<C>
+where
+    C: AsContextMut,
+{
     fn set_item_at(&mut self, offset: usize, item: u8) {
         if self.len < offset {
             return;
