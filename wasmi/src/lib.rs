@@ -194,19 +194,36 @@ impl Backend for WasmiBackend {
     }
 }
 
-fn trace(caller: Caller<'_, WasmiBackendState>, ptr: u32) {
-    let output: Vec<u8> = alloc::vec![];
+fn trace(caller: Caller<'_, WasmiBackendState>, mut ptr: u32) {
+    let mut msg = String::new();
+    let mut buf: [u8; 1] = [1];
 
-    let offset = ptr as usize;
-    let last: u8 = 1;
+    while buf[0] != 0 {
+        if let Err(err) = caller.data().memory().read(&caller, ptr as usize, &mut buf) {
+            log::error!("error reading bytes in trace: {err}");
+            return;
+        };
 
-    // while last != 0 {
-    //     last = match caller.data().memory().read(&self.store, offset) {}
-    // }
+        ptr += 1;
+        msg.push(buf[0] as char);
+    }
+
+    caller.data().api().print(&msg);
 }
 
-fn tracef(caller: Caller<'_, WasmiBackendState>, fmt: u32, args: u32) {
-    todo!()
+fn tracef(mut caller: Caller<'_, WasmiBackendState>, fmt: u32, args: u32) {
+    let msg = wasmstation_core::tracef(
+        fmt as usize,
+        args as usize,
+        &WasmiSlice {
+            offset: 0,
+            len: 64000,
+            mem: caller.data().memory(),
+            ctx: &mut caller,
+        },
+    );
+
+    caller.data().api().print(&msg);
 }
 
 fn trace_utf8(caller: Caller<'_, WasmiBackendState>, ptr: u32, len: u32) {
@@ -215,14 +232,19 @@ fn trace_utf8(caller: Caller<'_, WasmiBackendState>, ptr: u32, len: u32) {
         log::error!("error reading traceUtf8 bytes: {err}");
     }
 
-    match str::from_utf8(&buf) {
-        Ok(msg) => caller.data().api().print(msg),
-        Err(err) => log::error!("traceUtf8 parse error: {err}"),
-    }
+    caller.data().api().print(&String::from_utf8_lossy(&buf));
 }
 
 fn trace_utf16(caller: Caller<'_, WasmiBackendState>, ptr: u32, len: u32) {
-    todo!()
+    let mut buf = alloc::vec![0; len as usize];
+    if let Err(err) = caller.data().memory().read(&caller, ptr as usize, &mut buf) {
+        log::error!("error reading traceUtf16 bytes: {err}");
+    }
+
+    caller
+        .data()
+        .api()
+        .print(&String::from_utf16_lossy(bytemuck::cast_slice(&buf)));
 }
 
 fn blit(
@@ -234,7 +256,7 @@ fn blit(
     height: u32,
     flags: u32,
 ) {
-    todo!()
+    blit_sub(caller, ptr, x, y, width, height, 0, 0, width, flags)
 }
 
 fn blit_sub(
