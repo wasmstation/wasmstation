@@ -126,9 +126,11 @@ where
     }
 }
 
+type PrintFn = Arc<Box<dyn Fn(&str) + Sync + Send + 'static>>;
+
 pub struct Console {
     audio_state: AudioState,
-    print: Arc<Box<dyn Fn(&str) + Sync + Send + 'static>>,
+    print: PrintFn,
 }
 
 impl Console {
@@ -161,7 +163,7 @@ impl Default for Console {
 
 pub struct Api {
     audio_api: AudioInterface,
-    print: Arc<Box<dyn Fn(&str) + Sync + Send + 'static>>,
+    print: PrintFn,
     pub save_cache: Cell<[u8; 1024]>,
     pub needs_write: Cell<bool>,
 }

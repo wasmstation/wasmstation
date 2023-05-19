@@ -1,4 +1,5 @@
 #![no_std]
+#![allow(clippy::too_many_arguments)]
 
 extern crate alloc;
 
@@ -19,11 +20,11 @@ pub struct WasmiBackend {
 impl WasmiBackend {
     pub fn from_bytes(bytes: &[u8], console: &Console) -> Result<Self, wasmi::Error> {
         let engine = Engine::default();
-        let module = Module::new(&engine, bytes).map_err(|e| wasmi::Error::from(e))?;
+        let module = Module::new(&engine, bytes).map_err(wasmi::Error::from)?;
 
         let mut store: Store<WasmiBackendState> = Store::new(&engine, WasmiBackendState::default());
         let memory = Memory::new(&mut store, MemoryType::new(1, Some(1)).unwrap())
-            .map_err(|e| wasmi::Error::from(e))?;
+            .map_err(wasmi::Error::from)?;
 
         memory.write(&mut store, wasm4::PALETTE_ADDR, &utils::default_palette())?;
         memory.write(
@@ -46,7 +47,7 @@ impl WasmiBackend {
         let mut linker = <Linker<WasmiBackendState>>::new(&engine);
         linker
             .define("env", "memory", store.data().memory.unwrap())
-            .map_err(|e| wasmi::Error::from(e))?;
+            .map_err(wasmi::Error::from)?;
 
         let env: [(&str, Func); 17] = [
             ("trace", Func::wrap(&mut store, trace)),
@@ -71,17 +72,17 @@ impl WasmiBackend {
         for (name, func) in env {
             linker
                 .define("env", name, func)
-                .map_err(|e| wasmi::Error::from(e))?;
+                .map_err(wasmi::Error::from)?;
         }
 
         let instance = linker
             .instantiate(&mut store, &module)
-            .map_err(|e| wasmi::Error::from(e))?
+            .map_err(wasmi::Error::from)?
             .start(&mut store)
-            .map_err(|e| wasmi::Error::from(e))?;
+            .map_err(wasmi::Error::from)?;
 
-        let start: Option<Func> = instance.get_func(&store, "start").map_or(None, Some);
-        let update: Option<Func> = instance.get_func(&store, "update").map_or(None, Some);
+        let start: Option<Func> = instance.get_func(&store, "start");
+        let update: Option<Func> = instance.get_func(&store, "update");
 
         Ok(Self {
             store,
@@ -391,7 +392,7 @@ fn text_utf16(mut caller: Caller<'_, WasmiBackendState>, ptr: u32, len: u32, x: 
 
     framebuffer::text(
         &mut framebuffer(&mut caller, mem),
-        &bytemuck::cast_slice::<u8, u16>(&text),
+        bytemuck::cast_slice::<u8, u16>(&text),
         x,
         y,
         dc,
