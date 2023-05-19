@@ -9,7 +9,7 @@ fn main() {
     wasmstation_desktop::launch(
         WasmerBackend::precompiled(WASM_BYTES, &Console::new(|s| println!("{s}"))).unwrap(),
         &env::current_dir().unwrap(),
-        { window_scale },
+        {window_scale},
     )
     .unwrap();
 }
