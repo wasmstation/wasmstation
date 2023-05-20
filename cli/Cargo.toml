@@ -6,9 +6,10 @@ license.workspace = true
 edition.workspace = true
 
 [dependencies]
+wasmstation-core = { path = "../core/" }
 wasmstation-desktop = { path = "../desktop/" }
 wasmstation-wasmer = { path = "../wasmer/" }
-wasmstation-core = { path = "../core/" }
+wasmstation-wasmi = { path = "../wasmi/" }
 
 argh = "0.1"
 pretty_env_logger = "0.4"

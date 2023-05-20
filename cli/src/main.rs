@@ -2,7 +2,9 @@ use std::{env, ffi::OsStr, fs, path::PathBuf, str::FromStr};
 
 use argh::FromArgs;
 use wasmstation_core::Console;
+
 use wasmstation_wasmer::WasmerBackend;
+use wasmstation_wasmi::WasmiBackend;
 
 #[derive(FromArgs)]
 #[argh(description = "Run wasm4 compatible games.")]
@@ -38,17 +40,52 @@ struct Run {
     /// default scale factor for the window
     #[argh(option, short = 's', default = "3")]
     display_scale: u32,
+    /// webassembly backend used for executing the cart
+    #[argh(option, short = 'b', default = "BackendType::default()")]
+    backend: BackendType,
 }
 
 fn run(args: Run) {
     let wasm_bytes = fs::read(&args.path).expect("failed to read game");
+    let console = Console::new(|s| println!("{s}"));
 
-    wasmstation_desktop::launch(
-        WasmerBackend::new(&wasm_bytes, &Console::new()).unwrap(),
-        &args.path,
-        args.display_scale,
-    )
-    .unwrap();
+    match args.backend {
+        BackendType::Wasmer => {
+            wasmstation_desktop::launch(
+                WasmerBackend::from_bytes(&wasm_bytes, &console).expect("initialize WasmerBackend"),
+                &args.path,
+                args.display_scale,
+            )
+            .unwrap();
+        }
+        BackendType::Wasmi => {
+            wasmstation_desktop::launch(
+                WasmiBackend::from_bytes(&wasm_bytes, &console).expect("initialize WasmiBackend"),
+                &args.path,
+                args.display_scale,
+            )
+            .unwrap();
+        }
+    };
+}
+
+#[derive(Copy, Clone, Default)]
+enum BackendType {
+    #[default]
+    Wasmer,
+    Wasmi,
+}
+
+impl FromStr for BackendType {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "wasmi" => Ok(Self::Wasmi),
+            "wasmer" => Ok(Self::Wasmer),
+            _ => Err("backend type must be 'wasmi' or 'wasmer'".to_string()),
+        }
+    }
 }
 
 /// Create a Rust project for wrapping a WASM-4 game into a native executable in the current directory.

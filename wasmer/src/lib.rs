@@ -1,7 +1,7 @@
 use log::error;
 use wasmer::{
-    imports, AsStoreRef, Engine, Function, FunctionEnv, FunctionEnvMut, Instance, Memory,
-    MemoryType, MemoryView, Module, Store, TypedFunction, ValueType, WasmPtr, WasmSlice,
+    imports, Engine, Function, FunctionEnv, FunctionEnvMut, Instance, Memory, MemoryType,
+    MemoryView, Module, Store, TypedFunction, ValueType, WasmPtr, WasmSlice,
 };
 
 use wasmstation_core::{
@@ -20,7 +20,7 @@ pub struct WasmerBackend {
 
 impl WasmerBackend {
     /// Create a [`WasmerBackend`] from raw `.wasm` bytes.
-    pub fn new(wasm_bytes: &[u8], console: &Console) -> anyhow::Result<Self> {
+    pub fn from_bytes(wasm_bytes: &[u8], console: &Console) -> anyhow::Result<Self> {
         Self::precompiled(
             &Module::new(&Store::default(), wasm_bytes)?.serialize()?,
             console,
@@ -184,7 +184,7 @@ struct Context<'a> {
 
 impl<'a> Context<'a> {
     fn from_env(env: &'a FunctionEnvMut<'a, WasmerRuntimeEnv>) -> Context<'a> {
-        let view = env.data().memory.view(&env.as_store_ref());
+        let view = env.data().memory.view(env);
 
         Self { view }
     }
@@ -293,7 +293,7 @@ fn trace(env: FunctionEnvMut<WasmerRuntimeEnv>, ptr: WasmPtr<u8>) {
 
     // WASM4's trace is "supposed" to just be ASCII but UTF-8
     // is a superset of ASCII so this should be fine.
-    let str = match ptr.read_utf8_string_with_nul(ctx.view()) {
+    let msg = match ptr.read_utf8_string_with_nul(ctx.view()) {
         Ok(str) => str,
         Err(err) => {
             error!(
@@ -304,26 +304,23 @@ fn trace(env: FunctionEnvMut<WasmerRuntimeEnv>, ptr: WasmPtr<u8>) {
         }
     };
 
-    println!("{str}");
+    env.data().api.print(&msg);
 }
 
 fn tracef(env: FunctionEnvMut<WasmerRuntimeEnv>, fmt: WasmPtr<u8>, args: WasmPtr<u8>) {
     let ctx = Context::from_env(&env);
 
-    println!(
-        "{}",
-        trace::tracef(
-            fmt.offset() as usize,
-            args.offset() as usize,
-            &MemoryViewSource { view: ctx.view() }
-        )
-    );
+    env.data().api.print(&trace::tracef(
+        fmt.offset() as usize,
+        args.offset() as usize,
+        &MemoryViewSource { view: ctx.view() },
+    ));
 }
 
 fn trace_utf8(env: FunctionEnvMut<WasmerRuntimeEnv>, ptr: WasmPtr<u8>, len: u32) {
     let ctx = Context::from_env(&env);
 
-    let str = match ptr.read_utf8_string(ctx.view(), len) {
+    let msg = match ptr.read_utf8_string(ctx.view(), len) {
         Ok(bytes) => bytes,
         Err(err) => {
             error!(
@@ -335,7 +332,7 @@ fn trace_utf8(env: FunctionEnvMut<WasmerRuntimeEnv>, ptr: WasmPtr<u8>, len: u32)
         }
     };
 
-    println!("{str}");
+    env.data().api.print(&msg);
 }
 
 fn trace_utf16(env: FunctionEnvMut<WasmerRuntimeEnv>, ptr: WasmPtr<u8>, len: u32) {
@@ -363,9 +360,15 @@ fn trace_utf16(env: FunctionEnvMut<WasmerRuntimeEnv>, ptr: WasmPtr<u8>, len: u32
 
     // lossy conversion is better here, it's not likely
     // that the cart will give us an incompatible character.
-    let str = String::from_utf16_lossy(bytemuck::cast_slice(&bytes));
+    let msg = match String::from_utf16(bytemuck::cast_slice(&bytes)) {
+        Ok(msg) => msg,
+        Err(err) => {
+            error!("Error reading UTF-16 string from bytes: {err}");
+            return;
+        }
+    };
 
-    println!("{str}");
+    env.data().api.print(&msg);
 }
 
 fn blit(

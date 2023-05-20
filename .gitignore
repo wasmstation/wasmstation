@@ -16,3 +16,6 @@ Cargo.lock
 /Cargo.lock
 
 /.vscode
+*.wasm
+
+dist/
