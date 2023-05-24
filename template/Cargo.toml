@@ -1,0 +1,16 @@
+[package]
+name = "{crate_name}"
+version = "0.1.0"
+edition = "2021"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "z"
+strip = true
+
+[build-dependencies]
+wasmstation = { git = "https://github.com/wasmstation/wasmstation", branch = "crossplatform-singlecrate", features = ["wasmer", "sdl2-renderer"] }
+
+[dependencies]
+wasmstation = { git = "https://github.com/wasmstation/wasmstation", branch = "crossplatform-singlecrate", features = ["wasmer", "sdl2-renderer"] }

@@ -1,14 +1,65 @@
-[workspace]
-members = ["cli", "core", "wasmer", "desktop", "wasmi"]
-
-[workspace.package]
+[package]
+name = "wasmstation"
 version = "0.1.0"
 edition = "2021"
 authors = ["Grant Handy <granthandy@proton.me>", "Upachler"]
 license = "MIT"
 repository = "https://github.com/wasmstation/wasmstation"
 
-[workspace.dependencies]
-log = "0.4"
+[workspace]
+members = ["examples/*"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[[bin]]
+name = "wasmstation"
+path = "src/bin/cli.rs"
+required-features = ["cli"]
+
+[dependencies]
+# Core
 anyhow = "1.0"
-bytemuck = "1.12"
+bytemuck = "1.13"
+byteorder = "1.4"
+log = "0.4"
+num-traits = "0.2"
+
+# Cli
+argh = { version = "0.1", optional = true }
+pretty_env_logger = { version = "0.4", optional = true }
+
+# WasmerBackend
+wasmer = { version = "3.1", optional = true }
+
+# WasmiBackend
+wasmi = { version = "0.29", optional = true }
+
+# sdl2-renderer
+sdl2 = { version = "0.35", optional = true }
+palette = { version = "0.6", optional = true }
+
+# gpu-renderer
+pixels = { version = "0.12", optional = true }
+winit = { version = "0.28", optional = true }
+pollster = { version = "0.3", optional = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = { version = "0.2", optional = true }
+web-sys = { version = "0.3.63", features = ["Window", "Document", "Element", "HtmlCanvasElement"], optional = true }
+
+# see https://github.com/RustAudio/cpal/pull/774
+cpal = { git = "https://github.com/DouglasDwyer/cpal", features = ["wasm-bindgen"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+cpal = { git = "https://github.com/DouglasDwyer/cpal" }
+
+
+[features]
+default = ["wasmer"]
+cli = ["dep:argh", "dep:pretty_env_logger", "wasmer", "wasmi", "sdl2-renderer", "gpu-renderer"]
+wasmer = ["dep:wasmer"]
+wasmi = ["dep:wasmi"]
+sdl2-renderer = ["dep:sdl2", "dep:palette"]
+gpu-renderer = ["dep:winit", "dep:pixels", "dep:pollster", "dep:wasm-bindgen", "dep:web-sys"]

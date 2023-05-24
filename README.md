@@ -7,7 +7,7 @@ A work-in-progress runtime for [WASM-4](https://github.com/aduros/wasm4).
 * [X] Implement all WASM-4 functions
 * [X] Run W4 games (carts) on desktop platforms
 * [X] Embed wasmstation into standalone game executables
-* [ ] Offer support for different renderers (wgpu, sdl2)
+* [X] Offer support for different renderers (wgpu, sdl2)
 * [ ] Driver infrastructure for input
 * [ ] Factor Abstractions into design for mid and long term goals
 
@@ -21,5 +21,5 @@ A work-in-progress runtime for [WASM-4](https://github.com/aduros/wasm4).
 
 
 ## Long Term Goals
-* Offer support for runtimes other than wasmer (wasm3, etc...)
+* [X] Offer support for runtimes other than wasmer (wasm3, etc...)
 
