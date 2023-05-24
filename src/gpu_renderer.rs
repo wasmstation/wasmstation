@@ -12,7 +12,11 @@ use winit::{
 
 /// Launch a game window in a desktop window.
 #[cfg(not(target_arch = "wasm32"))]
-pub fn launch_desktop(backend: impl Backend + 'static, title: &str, display_scale: u32) {
+pub fn launch_desktop(
+    backend: impl Backend + 'static,
+    title: &str,
+    display_scale: u32,
+) -> anyhow::Result<()> {
     let event_loop = EventLoop::new();
     let window = {
         let size = LogicalSize::new(
@@ -23,16 +27,19 @@ pub fn launch_desktop(backend: impl Backend + 'static, title: &str, display_scal
             .with_title(title)
             .with_inner_size(size)
             .with_min_inner_size(size)
-            .build(&event_loop)
-            .unwrap()
+            .build(&event_loop)?
     };
 
-    launch(backend, display_scale, window, event_loop);
+    launch(backend, display_scale, window, event_loop)
 }
 
 /// Launch a game window on a web canvas.
 #[cfg(any(doc, target_arch = "wasm32"))]
-pub fn launch_web(backend: impl Backend + 'static, canvas_id: &str, display_scale: u32) {
+pub fn launch_web(
+    backend: impl Backend + 'static,
+    canvas_id: &str,
+    display_scale: u32,
+) -> anyhow::Result<()> {
     #[cfg(target_arch = "wasm32")]
     use {wasm_bindgen::JsCast, winit::platform::web::WindowBuilderExtWebSys};
 
@@ -52,11 +59,10 @@ pub fn launch_web(backend: impl Backend + 'static, canvas_id: &str, display_scal
                     .and_then(|document| document.get_element_by_id(canvas_id))
                     .and_then(|elem| elem.dyn_into().map_or(None, Some)),
             )
-            .build(&event_loop)
-            .unwrap()
+            .build(&event_loop)?
     };
 
-    launch(backend, display_scale, window, event_loop);
+    launch(backend, display_scale, window, event_loop)
 }
 
 /// Launch a [`winit`]/[`pixels`] window with a custom [`Window`](winit::window::Window) and [`EventLoop`](winit::event_loop::EventLoop).
@@ -65,13 +71,11 @@ pub fn launch<T>(
     display_scale: u32,
     window: Window,
     event_loop: EventLoop<T>,
-) {
+) -> anyhow::Result<()> {
     let mut pixels = {
         let window_size = window.inner_size();
         let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
-        Pixels::new_async(wasm4::SCREEN_SIZE, wasm4::SCREEN_SIZE, surface_texture)
-            .block_on()
-            .expect("Pixels error")
+        Pixels::new_async(wasm4::SCREEN_SIZE, wasm4::SCREEN_SIZE, surface_texture).block_on()?
     };
 
     let mut mouse: (i16, i16) = (0, 0);

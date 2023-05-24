@@ -4,7 +4,7 @@
 pub mod core;
 
 #[doc(inline)]
-pub use crate::core::{Backend, Sink, Source, Console, Api};
+pub use crate::core::{Api, Backend, Console, Sink, Source};
 
 #[cfg(feature = "wasmer")]
 pub mod wasmer_backend;

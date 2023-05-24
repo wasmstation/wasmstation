@@ -1,5 +1,5 @@
-use wasmstation::{WasmiBackend, Console};
 use wasm_bindgen::prelude::*;
+use wasmstation::{Console, WasmiBackend};
 
 #[wasm_bindgen]
 extern "C" {

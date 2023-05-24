@@ -38,7 +38,11 @@ const SCREEN_LENGTH: usize = (SCREEN_SIZE * SCREEN_SIZE) as usize;
 const TEXTURE_LENGTH: usize = SCREEN_LENGTH * 3;
 
 /// Launch a game in a SDL2 window.
-pub fn launch_desktop(mut backend: impl Backend, path: &Path, display_scale: u32) -> anyhow::Result<()> {
+pub fn launch_desktop(
+    mut backend: impl Backend,
+    path: &Path,
+    display_scale: u32,
+) -> anyhow::Result<()> {
     let mut save_file = path.to_path_buf();
     save_file.set_extension("disk");
 
