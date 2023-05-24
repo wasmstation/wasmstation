@@ -4,9 +4,8 @@ use wasmstation::{gpu_renderer, Console, WasmiBackend};
 use wasm_bindgen::prelude::*;
 
 #[cfg(target_arch = "wasm32")]
-#[wasm_bindgen]
+#[wasm_bindgen(js_namespace = console)]
 extern "C" {
-    #[wasm_bindgen(js_namespace = console)]
     fn log(msg: &str);
 }
 

@@ -46,8 +46,8 @@ winit = { version = "0.28", optional = true }
 pollster = { version = "0.3", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-wasm-bindgen = { version = "0.2", optional = true }
-web-sys = { version = "0.3.63", features = ["Window", "Document", "Element", "HtmlCanvasElement"], optional = true }
+wasm-bindgen = "0.2"
+web-sys = { version = "0.3", features = ["Window", "Document", "Element", "HtmlCanvasElement"], optional = true }
 
 # see https://github.com/RustAudio/cpal/pull/774
 cpal = { git = "https://github.com/DouglasDwyer/cpal", features = ["wasm-bindgen"] }
@@ -62,4 +62,4 @@ cli = ["dep:argh", "dep:pretty_env_logger", "wasmer", "wasmi", "sdl2-renderer", 
 wasmer = ["dep:wasmer"]
 wasmi = ["dep:wasmi"]
 sdl2-renderer = ["dep:sdl2", "dep:palette"]
-gpu-renderer = ["dep:winit", "dep:pixels", "dep:pollster", "dep:wasm-bindgen", "dep:web-sys"]
+gpu-renderer = ["dep:winit", "dep:pixels", "dep:pollster", "dep:web-sys"]

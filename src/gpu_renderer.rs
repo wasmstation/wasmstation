@@ -50,7 +50,7 @@ pub fn launch_desktop(
             .build(&event_loop)?
     };
 
-    launch_custom(backend, display_scale, window, event_loop)
+    launch_custom(backend, window, event_loop)
 }
 
 /// Launch a game window on a HTML canvas.
@@ -82,13 +82,12 @@ pub fn launch_web(
             .build(&event_loop)?
     };
 
-    launch_custom(backend, display_scale, window, event_loop)
+    launch_custom(backend, window, event_loop)
 }
 
 /// Launch a [`winit`]/[`pixels`] window with a custom [`Window`](winit::window::Window) and [`EventLoop`](winit::event_loop::EventLoop).
 pub fn launch_custom<T>(
     mut backend: impl Backend + 'static,
-    display_scale: u32,
     window: Window,
     event_loop: EventLoop<T>,
 ) -> anyhow::Result<()> {
@@ -173,10 +172,31 @@ pub fn launch_custom<T>(
                     }
                 }
                 WindowEvent::CursorMoved { position, .. } => {
-                    mouse = (
-                        (position.x / display_scale as f64) as i16,
-                        (position.y / display_scale as f64) as i16,
+                    let window_size = window.inner_size();
+
+                    let min_side = window_size.width.min(window_size.height);
+                    let game_size = min_side - (min_side % wasm4::SCREEN_SIZE);
+
+                    let (border_x, border_y) = (
+                        (window_size.width - game_size) / 2,
+                        (window_size.height - game_size) / 2,
                     );
+
+                    if border_x == 0 && border_y == 0 {
+                        mouse = (
+                            ((position.x as f32 / game_size as f32) * wasm4::SCREEN_SIZE as f32)
+                                as i16,
+                            ((position.y as f32 / game_size as f32) * wasm4::SCREEN_SIZE as f32)
+                                as i16,
+                        );
+                    } else {
+                        mouse = (
+                            (((position.x as u32 - border_x) as f32 / game_size as f32)
+                                * wasm4::SCREEN_SIZE as f32) as i16,
+                            (((position.y as u32 - border_y) as f32 / game_size as f32)
+                                * wasm4::SCREEN_SIZE as f32) as i16,
+                        );
+                    }
                 }
                 WindowEvent::Resized(size) => {
                     if let Err(err) = pixels.resize_surface(size.width, size.height) {

@@ -126,7 +126,7 @@ where
     }
 }
 
-/// The function called to print `trace`, [`tracef`], `trace_utf8`, and `trace_utf16` calls.
+/// The function called to print the various trace calls.
 pub type PrintFn = Box<dyn Fn(&str) + Sync + Send + 'static>;
 
 /// A container for runtime configuration.
@@ -160,9 +160,22 @@ impl Console {
     }
 }
 
+#[cfg(target_arch = "wasm32")]
 impl Default for Console {
     fn default() -> Self {
-        Self::new(Box::new(|s| log::info!("trace: {s}")))
+        #[wasm_bindgen::prelude::wasm_bindgen(js_namespace = console)]
+        extern "C" {
+            fn log(msg: &str);
+        }
+
+        Self::new(Box::new(|s| log(s)))
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl Default for Console {
+    fn default() -> Self {
+        Self::new(Box::new(|s| println!("{s}")))
     }
 }
 
