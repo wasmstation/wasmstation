@@ -14,13 +14,8 @@ fn main() {
     #[cfg(target_arch = "wasm32")]
     console_log::init_with_level(log::Level::Info).expect("error initializing logger");
 
-    #[cfg(target_arch = "wasm32")]
-    let print = Box::new(|msg: &str| log(msg));
-    #[cfg(not(target_arch = "wasm32"))]
-    let print = Box::new(|msg: &str| println!("{msg}"));
-
     gpu_renderer::launch(
-        WasmiBackend::from_bytes(include_bytes!(env!("CART")), &Console::new(print)).unwrap(),
+        WasmiBackend::from_bytes(include_bytes!(env!("CART")), &Console::default()).unwrap(),
         "wasmstation",
         3,
     )
