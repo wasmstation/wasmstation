@@ -37,6 +37,8 @@ const TARGET_MS_PER_FRAME: Duration = Duration::from_millis((1000.0 / TARGET_FPS
 const SCREEN_LENGTH: usize = (SCREEN_SIZE * SCREEN_SIZE) as usize;
 const TEXTURE_LENGTH: usize = SCREEN_LENGTH * 3;
 
+pub use sdl2;
+
 /// Launch a game in a SDL2 window.
 pub fn launch_desktop(
     mut backend: impl Backend,

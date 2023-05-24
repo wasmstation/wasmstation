@@ -10,6 +10,26 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 
+pub use {pixels, winit};
+
+/// Launch the game in a window depending on the current platform.
+///
+/// Note:
+///  - Parameter `title: &str` is an attached HTML canvas id when compiled on WebAssembly.
+pub fn launch(
+    backend: impl Backend + 'static,
+    title: &str,
+    display_scale: u32,
+) -> anyhow::Result<()> {
+    #[cfg(target_arch = "wasm32")]
+    let res = launch_web(backend, title, display_scale);
+
+    #[cfg(not(target_arch = "wasm32"))]
+    let res = launch_desktop(backend, title, display_scale);
+
+    res
+}
+
 /// Launch a game window in a desktop window.
 #[cfg(not(target_arch = "wasm32"))]
 pub fn launch_desktop(
@@ -30,10 +50,10 @@ pub fn launch_desktop(
             .build(&event_loop)?
     };
 
-    launch(backend, display_scale, window, event_loop)
+    launch_custom(backend, display_scale, window, event_loop)
 }
 
-/// Launch a game window on a web canvas.
+/// Launch a game window on a HTML canvas.
 #[cfg(any(doc, target_arch = "wasm32"))]
 pub fn launch_web(
     backend: impl Backend + 'static,
@@ -62,11 +82,11 @@ pub fn launch_web(
             .build(&event_loop)?
     };
 
-    launch(backend, display_scale, window, event_loop)
+    launch_custom(backend, display_scale, window, event_loop)
 }
 
 /// Launch a [`winit`]/[`pixels`] window with a custom [`Window`](winit::window::Window) and [`EventLoop`](winit::event_loop::EventLoop).
-pub fn launch<T>(
+pub fn launch_custom<T>(
     mut backend: impl Backend + 'static,
     display_scale: u32,
     window: Window,
