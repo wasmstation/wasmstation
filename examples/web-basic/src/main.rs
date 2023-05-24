@@ -18,5 +18,5 @@ fn main() {
         .unwrap(),
         "wasmstation",
         3,
-    );
+    ).unwrap();
 }

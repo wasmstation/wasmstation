@@ -2,6 +2,22 @@
 
 A work-in-progress runtime for [WASM-4](https://github.com/aduros/wasm4).
 
+## Instructions
+
+To test the CLI:
+```shell
+ $ cargo run --bin wasmstation --features="cli" -- run <WASM4 CART>
+```
+
+To install the CLI:
+```shell
+ $ cargo install --path . --features="cli" --bin wasmstation
+```
+
+To test the [web example](./examples/web-basic) with [trunk](https://trunkrs.dev/):
+```shell
+ $ trunk serve examples/web-basic/index.html
+```
 
 ## Short Term Goals
 * [X] Implement all WASM-4 functions

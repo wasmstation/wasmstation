@@ -10,7 +10,7 @@ opt-level = "z"
 strip = true
 
 [build-dependencies]
-wasmstation = { git = "https://github.com/wasmstation/wasmstation", branch = "crossplatform-singlecrate", features = ["wasmer", "sdl2-renderer"] }
+wasmstation = { git = "https://github.com/wasmstation/wasmstation", features = ["wasmer", "sdl2-renderer"] }
 
 [dependencies]
-wasmstation = { git = "https://github.com/wasmstation/wasmstation", branch = "crossplatform-singlecrate", features = ["wasmer", "sdl2-renderer"] }
+wasmstation = { git = "https://github.com/wasmstation/wasmstation", features = ["wasmer", "sdl2-renderer"] }
