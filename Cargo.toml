@@ -30,9 +30,6 @@ num-traits = "0.2"
 argh = { version = "0.1", optional = true }
 pretty_env_logger = { version = "0.4", optional = true }
 
-# WasmerBackend
-wasmer = { version = "3.1", optional = true }
-
 # WasmiBackend
 wasmi = { version = "0.29", optional = true }
 
@@ -46,14 +43,14 @@ winit = { version = "0.28", optional = true }
 pollster = { version = "0.3", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
+wasmer = { version = "3.1", default-features = false, features = ["js-default"], optional = true }
 wasm-bindgen = "0.2"
 web-sys = { version = "0.3", features = ["Window", "Document", "Element", "HtmlCanvasElement"], optional = true }
-
-# see https://github.com/RustAudio/cpal/pull/774
-cpal = { git = "https://github.com/DouglasDwyer/cpal", features = ["wasm-bindgen"] }
+cpal = { git = "https://github.com/DouglasDwyer/cpal", features = ["wasm-bindgen"] } # see https://github.com/RustAudio/cpal/pull/774
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 cpal = { git = "https://github.com/DouglasDwyer/cpal" }
+wasmer = { version = "3.1", optional = true }
 
 
 [features]

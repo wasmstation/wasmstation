@@ -25,16 +25,25 @@ pub struct WasmerBackend {
 impl WasmerBackend {
     /// Create a [`WasmerBackend`] from raw `.wasm` bytes.
     pub fn from_bytes(wasm_bytes: &[u8], console: &Console) -> anyhow::Result<Self> {
-        Self::precompiled(
-            &Module::new(&Store::default(), wasm_bytes)?.serialize()?,
-            console,
-        )
+        let store = Store::new(Engine::default());
+        let module = Module::new(&store, wasm_bytes)?;
+
+        Self::new(store, module, console)        
+    }
+
+    #[cfg(any(doc, not(target_arch = "wasm32")))]
+    /// Start a [`WasmerBackend`] without compiling at runtime from [`Module`](wasmer::Module) bytes.
+    /// 
+    /// Note: This method is not available in WebAssembly.
+    pub fn precompiled(module_bytes: &[u8], console: &Console) -> anyhow::Result<Self> {
+        let store = Store::new(Engine::headless());
+        let module = unsafe { Module::deserialize(&store, module_bytes)? };
+
+        Self::new(store, module, console)
     }
 
     /// Create a [`WasmerBackend`] from precompiled [`Module`](wasmer::Module) bytes.
-    pub fn precompiled(module_bytes: &[u8], console: &Console) -> anyhow::Result<Self> {
-        let mut store = Store::new(Engine::headless());
-        let module = unsafe { Module::deserialize(&store, module_bytes)? };
+    fn new(mut store: Store, module: Module, console: &Console) -> anyhow::Result<Self> {
 
         // init memory and env
         let wasm_env = WasmerRuntimeEnv::new(&mut store, console.create_api())?;
