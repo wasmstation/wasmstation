@@ -139,7 +139,7 @@ pub fn launch_custom<T>(
                     let (mask, gamepad): (u8, &mut u8) = match input.virtual_keycode {
                         // Player 1
                         Some(VirtualKeyCode::X) => (wasm4::BUTTON_1, gamepad1),
-                        Some(VirtualKeyCode::Y) => (wasm4::BUTTON_2, gamepad1),
+                        Some(VirtualKeyCode::Z) => (wasm4::BUTTON_2, gamepad1),
                         Some(VirtualKeyCode::Up) => (wasm4::BUTTON_UP, gamepad1),
                         Some(VirtualKeyCode::Down) => (wasm4::BUTTON_DOWN, gamepad1),
                         Some(VirtualKeyCode::Left) => (wasm4::BUTTON_LEFT, gamepad1),

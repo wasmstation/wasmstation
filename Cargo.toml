@@ -54,7 +54,7 @@ wasmer = { version = "3.1", optional = true }
 
 
 [features]
-default = ["wasmer"]
+default = []
 cli = ["dep:argh", "dep:pretty_env_logger", "wasmer", "wasmi", "sdl2-renderer", "gpu-renderer"]
 wasmer = ["dep:wasmer"]
 wasmi = ["dep:wasmi"]
