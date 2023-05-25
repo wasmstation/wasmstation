@@ -1,0 +1,11 @@
+[package]
+name = "wasmstation-cli"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+wasmstation = { path = "..", features = ["wasmer", "wasmi", "sdl2-renderer", "gpu-renderer"] }
+argh = "0.1"
+anyhow = "1.0"
+log = "0.4"
+pretty_env_logger = "0.4"

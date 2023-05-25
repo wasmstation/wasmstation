@@ -11,7 +11,10 @@ extern "C" {
 
 fn main() {
     #[cfg(target_arch = "wasm32")]
-    console_log::init_with_level(log::Level::Info).expect("error initializing logger");
+    {
+        console_log::init_with_level(log::Level::Info).expect("error initializing logger");
+        console_error_panic_hook::set_once();
+    }
 
     gpu_renderer::launch(
         WasmiBackend::from_bytes(include_bytes!(env!("CART")), &Console::default()).unwrap(),

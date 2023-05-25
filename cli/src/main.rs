@@ -50,7 +50,7 @@ struct Run {
 
 fn run(args: Run) -> anyhow::Result<()> {
     let wasm_bytes = fs::read(&args.path)?;
-    let console = Console::new(Box::new(|s| println!("{s}")));
+    let console = Console::default();
 
     match args.renderer {
         RendererType::Sdl2 => match args.backend {

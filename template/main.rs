@@ -6,7 +6,7 @@ const WASM_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/wasm.module"
 
 fn main() {
     launch_desktop(
-        WasmerBackend::precompiled(WASM_BYTES, &Console::new(Box::new(|s| println!("{s}")))).unwrap(),
+        WasmerBackend::precompiled(WASM_BYTES, &Console::default()).unwrap(),
         &env::current_dir().unwrap(),
         {window_scale},
     )

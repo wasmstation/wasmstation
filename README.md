@@ -2,7 +2,7 @@
 
 A work-in-progress runtime for [WASM-4](https://github.com/aduros/wasm4).
 
-*Check out the [basic demo](./examples/basic), it runs on desktop and on the web!*
+*Check out the [basic demo](./demo/), it runs on desktop and on the web!*
 
 ## Short Term Goals
 * [X] Implement all WASM-4 functions

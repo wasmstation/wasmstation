@@ -6,17 +6,19 @@ authors = ["Grant Handy <granthandy@proton.me>", "Upachler"]
 license = "MIT"
 repository = "https://github.com/wasmstation/wasmstation"
 
-[workspace]
-members = ["examples/*"]
-
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
-[[bin]]
-name = "wasmstation"
-path = "src/bin/cli.rs"
-required-features = ["cli"]
+[workspace]
+members = ["demo", "cli"]
+default-members = ["cli"]
+
+[profile.release]
+codegen-units = 1
+opt-level = 3
+lto = true
+strip = true
 
 [dependencies]
 # Core
@@ -25,10 +27,6 @@ bytemuck = "1.13"
 byteorder = "1.4"
 log = "0.4"
 num-traits = "0.2"
-
-# Cli
-argh = { version = "0.1", optional = true }
-pretty_env_logger = { version = "0.4", optional = true }
 
 # WasmiBackend
 wasmi = { version = "0.29", optional = true }
@@ -42,20 +40,20 @@ pixels = { version = "0.12", optional = true }
 winit = { version = "0.28", optional = true }
 pollster = { version = "0.3", optional = true }
 
+# WASM-specific dependencies
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasmer = { version = "3.1", default-features = false, features = ["js-default"], optional = true }
 wasm-bindgen = "0.2"
 web-sys = { version = "0.3", features = ["Window", "Document", "Element", "HtmlCanvasElement"], optional = true }
 cpal = { git = "https://github.com/DouglasDwyer/cpal", features = ["wasm-bindgen"] } # see https://github.com/RustAudio/cpal/pull/774
 
+# NON-WASM-specific dependencies
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 cpal = { git = "https://github.com/DouglasDwyer/cpal" }
 wasmer = { version = "3.1", optional = true }
 
-
 [features]
 default = []
-cli = ["dep:argh", "dep:pretty_env_logger", "wasmer", "wasmi", "sdl2-renderer", "gpu-renderer"]
 wasmer = ["dep:wasmer"]
 wasmi = ["dep:wasmi"]
 sdl2-renderer = ["dep:sdl2", "dep:palette"]
